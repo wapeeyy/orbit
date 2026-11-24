@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { isActive, onKeyChange } from "./key";
+import { PRICE_LABEL } from "./price";
 
 export function usePro() {
   const [pro, setPro] = useState(false);
@@ -20,7 +21,7 @@ export default function ProLock({ title, text, onSubscribe }: { title: string; t
       <b>🔒 {title}</b>
       <span className="muted small">{text}</span>
       <button className="copy primary" onClick={onSubscribe}>
-        Langgan ORBIT Pro — RM100 / bulan
+        Get ORBIT Pro — {PRICE_LABEL}
       </button>
     </div>
   );

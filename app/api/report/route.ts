@@ -10,8 +10,8 @@ export const maxDuration = 30;
 export async function GET(req: Request) {
   const q = new URL(req.url).searchParams;
   const ca = q.get("ca") ?? "";
-  if (!isValidMint(ca)) return NextResponse.json({ error: "CA tak sah" }, { status: 400 });
-  if (!keyFrom(req)) return NextResponse.json({ error: "Laporan ORBIT untuk pelanggan Pro", locked: true }, { status: 402 });
+  if (!isValidMint(ca)) return NextResponse.json({ error: "Invalid CA" }, { status: 400 });
+  if (!keyFrom(req)) return NextResponse.json({ error: "ORBIT Report is for Pro subscribers", locked: true }, { status: 402 });
   const dev = q.get("dev");
   const owners = (q.get("owners") ?? "").split(",").filter(isValidMint).slice(0, 10);
   try {

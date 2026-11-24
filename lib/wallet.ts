@@ -73,7 +73,7 @@ type EnhancedTx = { signature: string; timestamp: number; type: string; source: 
 
 function heliusKey() {
   const k = process.env.HELIUS_API_KEY;
-  if (!k) throw new Error("HELIUS_API_KEY belum diset");
+  if (!k) throw new Error("HELIUS_API_KEY is not set");
   return k;
 }
 const apiBase = () => process.env.HELIUS_API_BASE || "https://api.helius.xyz";
@@ -93,7 +93,7 @@ async function fetchSwaps(address: string) {
       res = await fetch(url, { cache: "no-store" });
     }
     if (!res.ok) {
-      if (page === 0) throw new Error(`Helius ${res.status}: tak dapat baca transaksi wallet`);
+      if (page === 0) throw new Error(`Helius ${res.status}: couldn't read wallet transactions`);
       break;
     }
     const body = await res.json();
@@ -283,13 +283,13 @@ export async function traceWallet(address: string): Promise<WalletReport> {
 
   const labels: string[] = [];
   if (totalUsd >= 100_000) labels.push("🐋 Whale");
-  if (tradesPerDay != null && tradesPerDay > 150) labels.push("🤖 Bot / sangat laju");
-  if (realized >= 10 && (winRate ?? 0) >= 55) labels.push("🔥 Trader untung");
-  if (realized <= -10) labels.push("📉 Banyak rugi");
-  if (complete && first && Date.now() - first < 3 * 86_400_000) labels.push("🆕 Wallet baru");
-  if (avgHold != null && avgHold < 30) labels.push("⚡ Scalper (pegang < 30 min)");
-  if (avgHold != null && avgHold > 24 * 60) labels.push("💎 Pegang lama");
-  if (swaps.length === 0) labels.push("😴 Tiada swap");
+  if (tradesPerDay != null && tradesPerDay > 150) labels.push("🤖 Bot / very fast");
+  if (realized >= 10 && (winRate ?? 0) >= 55) labels.push("🔥 Profitable trader");
+  if (realized <= -10) labels.push("📉 Heavy losses");
+  if (complete && first && Date.now() - first < 3 * 86_400_000) labels.push("🆕 New wallet");
+  if (avgHold != null && avgHold < 30) labels.push("⚡ Scalper (holds < 30 min)");
+  if (avgHold != null && avgHold > 24 * 60) labels.push("💎 Long holder");
+  if (swaps.length === 0) labels.push("😴 No swaps");
 
   const v: WalletReport = {
     address,

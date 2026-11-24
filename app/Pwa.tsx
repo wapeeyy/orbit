@@ -44,13 +44,13 @@ export default function Pwa() {
     <div className="install">
       <img src="/icon-192.png" alt="" />
       <div>
-        <b>Install app ORBIT</b>
+        <b>Install the ORBIT app</b>
         {ios ? (
           <span className="small muted">
-            Tekan <b>Share</b> (kotak anak panah) di Safari → <b>Add to Home Screen</b>
+            Tap <b>Share</b> (box with arrow) in Safari → <b>Add to Home Screen</b>
           </span>
         ) : (
-          <span className="small muted">Buka terus dari home screen, skrin penuh</span>
+          <span className="small muted">Open it from your home screen, full screen</span>
         )}
       </div>
       {evt && (
@@ -66,7 +66,7 @@ export default function Pwa() {
           Install
         </button>
       )}
-      <button className="x" onClick={close} aria-label="Tutup">
+      <button className="x" onClick={close} aria-label="Close">
         ✕
       </button>
     </div>

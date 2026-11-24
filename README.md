@@ -55,4 +55,4 @@ Kalau `ORBIT_SECRET` tak diset, `HELIUS_API_KEY` digunakan — tukar kunci Heliu
 ## App phone (PWA)
 
 `app/manifest.ts`, `public/sw.js`, ikon dalam `public/`. iPhone: Safari → Share → Add to Home Screen.
-Android: Chrome → Install app. Panduan pelanggan: `public/panduan-orbit.pdf`.
+Android: Chrome → Install app. Panduan pelanggan: `public/orbit-guide.pdf`.

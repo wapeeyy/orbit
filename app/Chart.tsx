@@ -24,11 +24,11 @@ const GT: Record<string, [string, number, number]> = {
 type Candle = { t: number; o: number; h: number; l: number; c: number; v: number };
 
 const TFS = [
-  { id: "5m", label: "5m", span: "24 jam" },
-  { id: "15m", label: "15m", span: "2 hari" },
-  { id: "1h", label: "1j", span: "7 hari" },
-  { id: "4h", label: "4j", span: "30 hari" },
-  { id: "1d", label: "1h", span: "1 tahun" },
+  { id: "5m", label: "5m", span: "24h" },
+  { id: "15m", label: "15m", span: "2d" },
+  { id: "1h", label: "1h", span: "7d" },
+  { id: "4h", label: "4h", span: "30d" },
+  { id: "1d", label: "1d", span: "1y" },
 ];
 
 const UP = "#3ee6a0";
@@ -48,7 +48,7 @@ export function fmtPrice(p: number) {
 const usd = (n: number) =>
   "$" + new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 const when = (t: number) =>
-  new Date(t * 1000).toLocaleString("ms-MY", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  new Date(t * 1000).toLocaleString("en-US", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 const pct = (n: number) => `${n > 0 ? "+" : ""}${n.toFixed(Math.abs(n) >= 100 ? 0 : 1)}%`;
 
 function analyse(cs: Candle[]) {
@@ -174,10 +174,10 @@ export default function Chart({ pool, token }: { pool: string; token: string }) 
     );
 
     // Garisan tertinggi / terendah / zon volume
-    price.createPriceLine({ price: a.hi.h, color: UP, lineStyle: LineStyle.Dashed, lineWidth: 1, axisLabelVisible: true, title: "Tertinggi" });
-    price.createPriceLine({ price: a.lo.l, color: DOWN, lineStyle: LineStyle.Dashed, lineWidth: 1, axisLabelVisible: true, title: "Terendah" });
+    price.createPriceLine({ price: a.hi.h, color: UP, lineStyle: LineStyle.Dashed, lineWidth: 1, axisLabelVisible: true, title: "High" });
+    price.createPriceLine({ price: a.lo.l, color: DOWN, lineStyle: LineStyle.Dashed, lineWidth: 1, axisLabelVisible: true, title: "Low" });
     price.createPriceLine({ price: a.zone.to, color: ZONE, lineStyle: LineStyle.Dotted, lineWidth: 1, axisLabelVisible: false, title: "" });
-    price.createPriceLine({ price: a.zone.from, color: ZONE, lineStyle: LineStyle.Dotted, lineWidth: 1, axisLabelVisible: false, title: "Zon volume" });
+    price.createPriceLine({ price: a.zone.from, color: ZONE, lineStyle: LineStyle.Dotted, lineWidth: 1, axisLabelVisible: false, title: "Volume zone" });
 
     const markers = [
       { time: a.hi.t as UTCTimestamp, position: "aboveBar" as const, color: UP, shape: "arrowDown" as const, text: "HIGH" },
@@ -212,42 +212,42 @@ export default function Chart({ pool, token }: { pool: string; token: string }) 
       </div>
 
       {error && <div className="alert danger">Chart: {error}</div>}
-      {!error && !candles && <div className="chart-loading muted">Memuatkan chart…</div>}
-      {candles && candles.length === 0 && <div className="chart-loading muted">Tiada data candle untuk pool ni.</div>}
+      {!error && !candles && <div className="chart-loading muted">Loading chart…</div>}
+      {candles && candles.length === 0 && <div className="chart-loading muted">No candle data for this pool.</div>}
       <div ref={box} className="chart-box" hidden={!candles || candles.length === 0} />
 
       {a && (
         <>
           <p className="muted small legend">
-            <span style={{ color: UP }}>━ Tertinggi</span> <span style={{ color: DOWN }}>━ Terendah</span>{" "}
-            <span style={{ color: ZONE }}>┅ Zon volume terbanyak</span> <span style={{ color: ZONE }}>▮ Candle volume terbesar</span>
+            <span style={{ color: UP }}>━ High</span> <span style={{ color: DOWN }}>━ Low</span>{" "}
+            <span style={{ color: ZONE }}>┅ Highest-volume zone</span> <span style={{ color: ZONE }}>▮ Biggest volume candle</span>
           </p>
           <div className="insights">
-            <Insight label={`Tertinggi (${span})`} value={`$${fmtPrice(a.hi.h)}`} sub={`${when(a.hi.t)} · sekarang ${pct(a.fromHi)}`} tone="up" />
-            <Insight label={`Terendah (${span})`} value={`$${fmtPrice(a.lo.l)}`} sub={`${when(a.lo.t)} · sekarang ${pct(a.fromLo)}`} tone="down" />
+            <Insight label={`High (${span})`} value={`$${fmtPrice(a.hi.h)}`} sub={`${when(a.hi.t)} · now ${pct(a.fromHi)}`} tone="up" />
+            <Insight label={`Low (${span})`} value={`$${fmtPrice(a.lo.l)}`} sub={`${when(a.lo.t)} · now ${pct(a.fromLo)}`} tone="down" />
             <Insight
-              label="Zon volume terbanyak"
+              label="Highest-volume zone"
               value={`$${fmtPrice(a.zone.from)} – $${fmtPrice(a.zone.to)}`}
-              sub={`${a.zone.share.toFixed(0)}% volume berlaku dalam julat ni`}
+              sub={`${a.zone.share.toFixed(0)}% of volume traded in this range`}
               tone="zone"
             />
             <Insight
-              label="Candle volume terbesar"
+              label="Biggest volume candle"
               value={usd(a.big.v)}
-              sub={`${when(a.big.t)} · candle ${a.big.c >= a.big.o ? "naik" : "turun"} ${pct((a.big.c / a.big.o - 1) * 100)}`}
+              sub={`${when(a.big.t)} · candle ${a.big.c >= a.big.o ? "up" : "down"} ${pct((a.big.c / a.big.o - 1) * 100)}`}
               tone="zone"
             />
-            <Insight label={`Perubahan (${span})`} value={pct(a.change)} sub={`Harga sekarang $${fmtPrice(a.last)}`} tone={a.change >= 0 ? "up" : "down"} />
+            <Insight label={`Change (${span})`} value={pct(a.change)} sub={`Price now $${fmtPrice(a.last)}`} tone={a.change >= 0 ? "up" : "down"} />
             <Insight
               label={`Volume (${span})`}
               value={usd(a.total)}
-              sub={`${a.ups} candle naik · ${a.downs} turun`}
+              sub={`${a.ups} up candles · ${a.downs} down`}
             />
           </div>
           <RangeBar lo={a.lo.l} hi={a.hi.h} now={a.last} zone={a.zone} />
         </>
       )}
-      <p className="muted small">Data candle: GeckoTerminal</p>
+      <p className="muted small">Candle data: GeckoTerminal</p>
     </section>
   );
 }
@@ -274,7 +274,7 @@ function RangeBar({ lo, hi, now, zone }: { lo: number; hi: number; now: number; 
       <div className="range-track">
         <div className="range-zone" style={{ left: at(zone.from), width: `calc(${at(zone.to)} - ${at(zone.from)})` }} />
         <div className={`range-now ${labelPos}`} style={{ left: at(now) }}>
-          <span>Sekarang</span>
+          <span>Now</span>
         </div>
       </div>
       <div className="range-ends small">

@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "ORBIT — Solana coin scanner",
     short_name: "ORBIT",
-    description: "Cari coin Solana yang okey: holder, chart, zon volume & naratif.",
+    description: "Find Solana coins worth a look: holders, chart, volume zones & narrative.",
     start_url: "/",
     scope: "/",
     display: "standalone",

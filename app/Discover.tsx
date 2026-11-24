@@ -7,6 +7,7 @@ import { CopyButton } from "./Copy";
 import { fmtPrice } from "./Chart";
 import { DEFAULTS, age, reasons, type Filters } from "@/lib/filters";
 import { api, isActive, onKeyChange } from "./key";
+import { PRICE_LABEL } from "./price";
 
 const KEY = "orbit.filters.v1";
 const REFRESH_MS = 60_000;
@@ -137,17 +138,17 @@ export default function Discover({ onOpen, onSubscribe }: { onOpen: (ca: string,
       <div className="card discover-head">
         <div>
           <strong>
-            {data ? `${passed.length + (data.locked?.hidden ?? 0)} coin lulus` : "Mencari coin…"}
+            {data ? `${passed.length + (data.locked?.hidden ?? 0)} coins passed` : "Finding coins…"}
           </strong>
           <span className="muted small">
             {data
-              ? ` daripada ${data.locked?.total ?? data.candidates.length} coin Solana dari DexScreener · dikemas kini ${new Date(data.updatedAt).toLocaleTimeString("ms-MY", { hour: "2-digit", minute: "2-digit" })}`
+              ? ` of ${data.locked?.total ?? data.candidates.length} Solana coins from DexScreener · updated ${new Date(data.updatedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`
               : ""}
           </span>
         </div>
         <div className="row-btns">
           <button className="ghost" onClick={() => setShowFilters((v) => !v)}>
-            Penapis {showFilters ? "▴" : "▾"}
+            Filters {showFilters ? "▴" : "▾"}
           </button>
           <button className="ghost" onClick={load} disabled={loading}>
             {loading ? "…" : "↻"}
@@ -158,16 +159,16 @@ export default function Discover({ onOpen, onSubscribe }: { onOpen: (ca: string,
           <div className="filters">
             <Num label="Liquidity min ($)" v={f.minLiq} on={(v) => update({ minLiq: v })} />
             <Num label="Market cap min ($)" v={f.minMc} on={(v) => update({ minMc: v })} />
-            <Num label="Volume 24j min ($)" v={f.minVol} on={(v) => update({ minVol: v })} />
-            <Num label="Umur min (jam)" v={f.minAgeH} on={(v) => update({ minAgeH: v })} />
-            <Num label="Top 10 maks (%)" v={f.maxTop10} on={(v) => update({ maxTop10: v })} />
-            <Num label="Wallet terbesar maks (%)" v={f.maxTop1} on={(v) => update({ maxTop1: v })} />
+            <Num label="Volume 24h min ($)" v={f.minVol} on={(v) => update({ minVol: v })} />
+            <Num label="Min age (hours)" v={f.minAgeH} on={(v) => update({ minAgeH: v })} />
+            <Num label="Top 10 max (%)" v={f.maxTop10} on={(v) => update({ maxTop10: v })} />
+            <Num label="Largest wallet max (%)" v={f.maxTop1} on={(v) => update({ maxTop1: v })} />
             <label className="check">
               <input type="checkbox" checked={f.needRevoked} onChange={(e) => update({ needRevoked: e.target.checked })} />
-              Mint & freeze mesti revoked
+              Mint & freeze must be revoked
             </label>
             <button className="ghost small" onClick={() => update(DEFAULTS)}>
-              Set semula
+              Reset
             </button>
           </div>
         )}
@@ -178,25 +179,25 @@ export default function Discover({ onOpen, onSubscribe }: { onOpen: (ca: string,
       {data && (
         <div className="views">
           <button className={view === "pass" ? "on" : ""} onClick={() => setView("pass")}>
-            ✓ Lulus ({passed.length})
+            ✓ Passed ({passed.length})
           </button>
           <button className={view === "zone" ? "on" : ""} onClick={() => setView("zone")}>
-            🎯 Dekat zon volume ({nearZone.length})
+            🎯 Near volume zone ({nearZone.length})
           </button>
           <button className={view === "all" ? "on" : ""} onClick={() => setView("all")}>
-            Semua ({rows.length})
+            All ({rows.length})
           </button>
         </div>
       )}
       {view === "zone" && zoneBusy && (
         <p className="small zone-note" style={{ color: "#ffb84d" }}>
-          Mengira zon volume… {zoneBusy.done}/{zoneBusy.total} coin (senarai bertambah sendiri)
+          Calculating volume zones… {zoneBusy.done}/{zoneBusy.total} coins (the list fills in automatically)
         </p>
       )}
       {view === "zone" && (
         <p className="muted small zone-note">
-          Coin yang lulus penapis <b>dan</b> harga sekarang berada dalam (atau ±5%) julat harga paling banyak volume
-          dalam 2 hari lepas — kawasan yang ramai pembeli/penjual pernah berdagang. Disusun paling dekat dahulu.
+          Coins that pass the filters <b>and</b> whose current price is inside (or within ±5% of) the price range with the most
+          volume over the last 2 days — where most buyers and sellers traded. Closest first.
         </p>
       )}
 
@@ -222,13 +223,13 @@ export default function Discover({ onOpen, onSubscribe }: { onOpen: (ca: string,
               <span><i>MC</i>{usd(c.marketCap)}</span>
               <span><i>Liq</i>{usd(c.liquidityUsd)}</span>
               <span><i>Vol</i>{usd(c.volume24h)}</span>
-              <span><i>Umur</i>{age(c.ageHours)}</span>
+              <span><i>Age</i>{age(c.ageHours)}</span>
               <span>
                 <i>Top10</i>
                 {c.holders ? `${c.holders.top10Pct.toFixed(1)}%` : "—"}
               </span>
               <span className={c.change24h == null ? "" : c.change24h >= 0 ? "up" : "down"}>
-                <i>24j</i>
+                <i>24h</i>
                 {c.change24h == null ? "—" : `${c.change24h > 0 ? "+" : ""}${c.change24h.toFixed(0)}%`}
               </span>
             </div>
@@ -271,17 +272,17 @@ export default function Discover({ onOpen, onSubscribe }: { onOpen: (ca: string,
               ))}
             </div>
             <div className="locked-cta">
-              <b>🔒 {data.locked.hidden} coin lagi lulus penapis</b>
+              <b>🔒 {data.locked.hidden} more coins passed the filters</b>
               <span className="muted small">
-                Versi percuma tunjuk 3 coin teratas. Langgan untuk senarai penuh, 🎯 Dekat zon volume, penapis sendiri dan scan mana-mana CA.
+                The free version shows the top 3 coins. Subscribe for the full list, 🎯 Near volume zone, custom filters and scanning any CA.
               </span>
-              <button className="copy primary" onClick={onSubscribe}>Langgan RM100 / bulan</button>
+              <button className="copy primary" onClick={onSubscribe}>Subscribe — {PRICE_LABEL}</button>
             </div>
           </div>
         )}
         {data && shown.length === 0 && !data.locked && (
           <div className="card muted">
-            Tiada coin lulus penapis sekarang. Longgarkan penapis atau tunggu refresh seterusnya (setiap minit).
+            No coins pass the filters right now. Loosen the filters or wait for the next refresh (every minute).
           </div>
         )}
       </div>
@@ -293,7 +294,7 @@ export default function Discover({ onOpen, onSubscribe }: { onOpen: (ca: string,
 
 function ZoneLine({ z }: { z: NonNullable<Candidate["zone"]> }) {
   const where =
-    z.distPct === 0 ? "Harga dalam zon volume" : z.distPct > 0 ? `${z.distPct.toFixed(1)}% atas zon volume` : `${Math.abs(z.distPct).toFixed(1)}% bawah zon volume`;
+    z.distPct === 0 ? "Price inside volume zone" : z.distPct > 0 ? `${z.distPct.toFixed(1)}% above volume zone` : `${Math.abs(z.distPct).toFixed(1)}% below volume zone`;
   return (
     <div className={`zoneline ${z.near ? "near" : ""}`}>
       {z.near ? "🎯 " : ""}

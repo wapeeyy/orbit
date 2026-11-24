@@ -96,15 +96,15 @@ async function telegramActivity(url: string): Promise<Activity | null> {
   if (!m) return null;
   const handle = m[1];
   const base: Activity = { platform: "telegram", handle, url, lastPostAt: null, lastText: null };
-  if (handle.startsWith("+") || handle === "joinchat") return { ...base, note: "Group peribadi — post tak boleh dibaca dari luar" };
+  if (handle.startsWith("+") || handle === "joinchat") return { ...base, note: "Private group — posts can't be read from outside" };
   const r = await getText(`https://t.me/s/${handle}`);
-  if (!r || r.status !== 200) return { ...base, note: "Tak dapat buka Telegram" };
+  if (!r || r.status !== 200) return { ...base, note: "Couldn't open Telegram" };
   const blocks = r.text.split('class="tgme_widget_message_wrap').slice(1);
-  if (blocks.length === 0) return { ...base, note: "Ini group chat (bukan channel) — tiada post awam untuk disemak" };
+  if (blocks.length === 0) return { ...base, note: "This is a group chat (not a channel) — no public posts to check" };
   const last = blocks[blocks.length - 1];
   const time = last.match(/<time[^>]*datetime="([^"]+)"/)?.[1] ?? null;
   const text = last.match(/tgme_widget_message_text[^>]*>([\s\S]*?)<\/div>/)?.[1];
-  return { ...base, lastPostAt: time, lastText: text ? clip(strip(text)) : "(media / tanpa teks)" };
+  return { ...base, lastPostAt: time, lastText: text ? clip(strip(text)) : "(media / no text)" };
 }
 
 function findTweets(node: unknown, out: { at: string; text: string }[]) {
@@ -123,15 +123,15 @@ async function xActivity(url: string): Promise<Activity | null> {
   const handle = m[1];
   const base: Activity = { platform: "x", handle, url, lastPostAt: null, lastText: null };
   if (["i", "intent", "home", "search", "hashtag"].includes(handle.toLowerCase()))
-    return { ...base, handle: "community", note: "Link X Community — tak boleh disemak automatik" };
+    return { ...base, handle: "community", note: "X Community link — can't be checked automatically" };
   const r = await getText(`https://syndication.twitter.com/srv/timeline-profile/screen-name/${handle}`);
   const json = r?.text.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/)?.[1];
-  if (!r || r.status !== 200 || !json) return { ...base, note: "X hadkan akses — buka profil untuk semak" };
+  if (!r || r.status !== 200 || !json) return { ...base, note: "X limits access — open the profile to check" };
   const tweets: { at: string; text: string }[] = [];
   try {
     findTweets(JSON.parse(json), tweets);
   } catch {}
-  if (tweets.length === 0) return { ...base, note: "Tiada post awam dijumpai" };
+  if (tweets.length === 0) return { ...base, note: "No public posts found" };
   tweets.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
   return { ...base, lastPostAt: new Date(tweets[0].at).toISOString(), lastText: clip(strip(tweets[0].text)) };
 }

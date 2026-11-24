@@ -29,7 +29,7 @@ const WARN_THRESHOLD = 30;
 function rpcUrl() {
   const key = process.env.HELIUS_API_KEY;
   if (process.env.SOLANA_RPC_URL) return process.env.SOLANA_RPC_URL; // pilihan: RPC lain (atau ujian)
-  if (!key) throw new Error("HELIUS_API_KEY belum diset");
+  if (!key) throw new Error("HELIUS_API_KEY is not set");
   return `https://mainnet.helius-rpc.com/?api-key=${key}`;
 }
 
@@ -85,7 +85,7 @@ export async function getHolders(
     rpc<{ value: { address: string; amount: string }[] }>("getTokenLargestAccounts", [mint]),
   ]);
   const mintInfo = mintRes.value?.data?.parsed?.info;
-  if (!mintInfo || mintRes.value?.data?.parsed?.type !== "mint") throw new Error("Alamat ni bukan mint token");
+  if (!mintInfo || mintRes.value?.data?.parsed?.type !== "mint") throw new Error("This address is not a token mint");
   const supplyRaw = BigInt(mintInfo.supply);
   const decimals = mintInfo.decimals;
   const accounts = largest.value.slice(0, 20);
@@ -123,7 +123,7 @@ export async function getHolders(
     else if (KNOWN_ADDRESSES[owner]) label = KNOWN_ADDRESSES[owner];
     else if (programOwner && KNOWN_PROGRAMS[programOwner]) label = KNOWN_PROGRAMS[programOwner];
     else if (!isOnCurve(owner)) label = "Program / PDA";
-    else if (programOwner && programOwner !== SYSTEM_PROGRAM) label = "Akaun program";
+    else if (programOwner && programOwner !== SYSTEM_PROGRAM) label = "Program account";
 
     return { rank: 0, owner, amount: ui(raw), pct: pct(raw), kind: label ? "excluded" : "wallet", label };
   });

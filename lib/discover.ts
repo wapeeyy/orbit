@@ -4,9 +4,9 @@ import { narratives, type VolumeZone } from "./analysis";
 
 // Senarai coin Solana yang DexScreener tengah tonjolkan
 const SOURCES: { path: string; tag: string }[] = [
-  { path: "token-profiles/latest/v1", tag: "Profil baru" },
-  { path: "token-boosts/latest/v1", tag: "Boost baru" },
-  { path: "token-boosts/top/v1", tag: "Boost top" },
+  { path: "token-profiles/latest/v1", tag: "New profile" },
+  { path: "token-boosts/latest/v1", tag: "New boost" },
+  { path: "token-boosts/top/v1", tag: "Top boost" },
   { path: "community-takeovers/latest/v1", tag: "CTO" },
 ];
 
@@ -157,7 +157,7 @@ export async function discover(): Promise<DiscoverResult> {
       return;
     }
     if (Date.now() - started > TIME_BUDGET_MS) {
-      c.holdersError = "Belum sempat disemak — cuba refresh";
+      c.holdersError = "Not checked yet — refresh";
       return;
     }
     try {

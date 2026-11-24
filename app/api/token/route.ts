@@ -8,10 +8,10 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   const ca = new URL(req.url).searchParams.get("ca")?.trim() ?? "";
   if (!isValidMint(ca)) {
-    return NextResponse.json({ error: "CA tak sah — mesti alamat Solana (base58, 32 bait)." }, { status: 400 });
+    return NextResponse.json({ error: "Invalid CA — must be a Solana address (base58, 32 bytes)." }, { status: 400 });
   }
   if (!canView(req, ca)) {
-    return NextResponse.json({ error: "Langganan diperlukan untuk scan coin ni", locked: true }, { status: 402 });
+    return NextResponse.json({ error: "A subscription is required to scan this coin", locked: true }, { status: 402 });
   }
 
   let market = null;
@@ -32,7 +32,7 @@ export async function GET(req: Request) {
 
   if (!market && !holders) {
     return NextResponse.json(
-      { error: holdersError ?? marketError ?? "Token tak dijumpai." },
+      { error: holdersError ?? marketError ?? "Token not found." },
       { status: 502 },
     );
   }

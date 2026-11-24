@@ -9,7 +9,7 @@ export const kvConfigured = () => cfg() !== null;
 
 async function cmd<T>(...args: (string | number)[]): Promise<T> {
   const c = cfg();
-  if (!c) throw new Error("Pangkalan data (Upstash Redis) belum disambung");
+  if (!c) throw new Error("Database (Upstash Redis) is not connected");
   const res = await fetch(c.url, {
     method: "POST",
     headers: { authorization: `Bearer ${c.token}`, "content-type": "application/json" },

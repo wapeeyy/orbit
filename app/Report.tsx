@@ -15,6 +15,7 @@ const usd = (n: number | null | undefined) =>
   n == null ? "—" : "$" + new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 const pct = (n: number | undefined | null) => (n == null ? "—" : `${n > 0 ? "+" : ""}${n.toFixed(Math.abs(n) >= 100 ? 0 : 1)}%`);
 const ICON: Record<Level, string> = { ok: "✅", warn: "⚠️", bad: "🚩", info: "ℹ️" };
+const ORDER: Level[] = ["bad", "warn", "info", "ok"];
 
 function analyse(m: Market | null, h: HolderReport | null, info: TokenInfo | null | undefined, x: TokenExtra | null) {
   let score = 100;
@@ -25,54 +26,55 @@ function analyse(m: Market | null, h: HolderReport | null, info: TokenInfo | nul
   };
 
   if (h) {
-    if (h.mintAuthority) hit(30, "bad", "Mint authority AKTIF — dev boleh cetak token baru");
-    else f.push({ level: "ok", text: "Mint authority dah revoke" });
-    if (h.freezeAuthority) hit(25, "bad", "Freeze authority AKTIF — dev boleh beku wallet pembeli");
-    else f.push({ level: "ok", text: "Freeze authority dah revoke" });
-    if (h.top10Pct > 50) hit(30, "bad", `Top 10 holder pegang ${h.top10Pct.toFixed(1)}% supply — sangat tertumpu`);
-    else if (h.top10Pct > 30) hit(20, "warn", `Top 10 holder pegang ${h.top10Pct.toFixed(1)}% supply (> 30%)`);
-    else f.push({ level: "ok", text: `Top 10 holder pegang ${h.top10Pct.toFixed(1)}% supply` });
-    if (h.top1Pct > 10) hit(10, "warn", `Wallet terbesar pegang ${h.top1Pct.toFixed(1)}%`);
+    if (h.mintAuthority) hit(30, "bad", "Mint authority ACTIVE — the dev can mint new tokens");
+    else f.push({ level: "ok", text: "Mint authority revoked" });
+    if (h.freezeAuthority) hit(25, "bad", "Freeze authority ACTIVE — the dev can freeze buyers' wallets");
+    else f.push({ level: "ok", text: "Freeze authority revoked" });
+    if (h.top10Pct > 50) hit(30, "bad", `Top 10 holders own ${h.top10Pct.toFixed(1)}% of supply — very concentrated`);
+    else if (h.top10Pct > 30) hit(20, "warn", `Top 10 holders own ${h.top10Pct.toFixed(1)}% of supply (> 30%)`);
+    else f.push({ level: "ok", text: `Top 10 holders own ${h.top10Pct.toFixed(1)}% of supply` });
+    if (h.top1Pct > 10) hit(10, "warn", `Largest wallet holds ${h.top1Pct.toFixed(1)}%`);
   }
 
   if (x?.dev) {
-    if (x.dev.pct > 5) hit(10, "warn", `Dev masih pegang ${x.dev.pct.toFixed(2)}% — boleh dump bila-bila`);
-    else if (x.dev.pct > 0) f.push({ level: "info", text: `Dev pegang ${x.dev.pct.toFixed(2)}%` });
-    else f.push({ level: "info", text: "Dev dah tak pegang token ni (dah jual / pindah)" });
+    if (x.dev.pct > 5) hit(10, "warn", `Dev still holds ${x.dev.pct.toFixed(2)}% — can dump at any time`);
+    else if (x.dev.pct > 0) f.push({ level: "info", text: `Dev holds ${x.dev.pct.toFixed(2)}%` });
+    else f.push({ level: "info", text: "Dev no longer holds this token (sold / moved)" });
   }
   if (x && x.holders.length) {
-    const baru = x.holders.filter((a) => a.flag === "baru").length;
-    const senyap = x.holders.filter((a) => a.flag === "senyap").length;
-    if (x.freshCount >= 3) hit(15, "bad", `${x.freshCount}/${x.holders.length} top holder ialah wallet baru/senyap — tanda insider atau bundle`);
-    else if (x.freshCount > 0) hit(5, "warn", `${baru ? `${baru} wallet baru` : ""}${baru && senyap ? " + " : ""}${senyap ? `${senyap} wallet senyap` : ""} dalam top holder`);
-    else f.push({ level: "ok", text: "Top holder bukan wallet baru" });
+    const fresh = x.holders.filter((a) => a.flag === "baru").length;
+    const silent = x.holders.filter((a) => a.flag === "senyap").length;
+    if (x.freshCount >= 3) hit(15, "bad", `${x.freshCount}/${x.holders.length} top holders are new/silent wallets — sign of insiders or a bundle`);
+    else if (x.freshCount > 0)
+      hit(5, "warn", `${fresh ? `${fresh} new wallet${fresh > 1 ? "s" : ""}` : ""}${fresh && silent ? " + " : ""}${silent ? `${silent} silent wallet${silent > 1 ? "s" : ""}` : ""} among top holders`);
+    else f.push({ level: "ok", text: "Top holders are not fresh wallets" });
   }
 
   if (m) {
     const liqRatio = m.marketCap ? (m.liquidityUsd / m.marketCap) * 100 : null;
-    if (liqRatio != null && liqRatio < 5) hit(10, "warn", `Liquidity cuma ${liqRatio.toFixed(1)}% dari MC — susah jual dalam jumlah besar`);
-    else if (liqRatio != null) f.push({ level: "ok", text: `Liquidity ${liqRatio.toFixed(0)}% dari MC` });
+    if (liqRatio != null && liqRatio < 5) hit(10, "warn", `Liquidity is only ${liqRatio.toFixed(1)}% of MC — hard to sell size`);
+    else if (liqRatio != null) f.push({ level: "ok", text: `Liquidity is ${liqRatio.toFixed(0)}% of MC` });
     const ageH = m.createdAt ? (Date.now() - m.createdAt) / 3_600_000 : null;
-    if (ageH != null && ageH < 1) hit(10, "warn", `Coin sangat baru (${Math.round(ageH * 60)} minit)`);
+    if (ageH != null && ageH < 1) hit(10, "warn", `Very new coin (${Math.round(ageH * 60)} minutes old)`);
     const t = m.txns?.h1;
     if (t && t.buys + t.sells >= 20) {
       const r = t.buys / Math.max(1, t.sells);
-      if (r < 0.67) hit(5, "warn", `Tekanan jual 1 jam: ${t.sells} jual vs ${t.buys} beli`);
-      else if (r > 1.5) f.push({ level: "info", text: `Tekanan beli 1 jam: ${t.buys} beli vs ${t.sells} jual` });
+      if (r < 0.67) hit(5, "warn", `Sell pressure (1h): ${t.sells} sells vs ${t.buys} buys`);
+      else if (r > 1.5) f.push({ level: "info", text: `Buy pressure (1h): ${t.buys} buys vs ${t.sells} sells` });
     }
-    if ((m.changes?.h24 ?? 0) < -70) hit(10, "bad", `Harga jatuh ${pct(m.changes?.h24)} dalam 24 jam — kemungkinan rug/dump`);
+    if ((m.changes?.h24 ?? 0) < -70) hit(10, "bad", `Price down ${pct(m.changes?.h24)} in 24h — possible rug/dump`);
   }
 
   if (info) {
     const socials = info.websites.length + (info.twitter ? 1 : 0) + (info.telegram ? 1 : 0);
-    if (socials === 0) hit(10, "warn", "Tiada website, X atau Telegram");
+    if (socials === 0) hit(10, "warn", "No website, X or Telegram");
     const last = info.activity.map((a) => a.lastPostAt).filter(Boolean).sort().pop();
-    if (last && Date.now() - Date.parse(last) > 7 * 86_400_000) hit(5, "warn", "Owner senyap lebih 7 hari di sosial");
+    if (last && Date.now() - Date.parse(last) > 7 * 86_400_000) hit(5, "warn", "Owner silent on socials for 7+ days");
   }
 
   score = Math.max(0, Math.min(100, score));
-  const grade = score >= 75 ? { cls: "ok", text: "Risiko rendah" } : score >= 50 ? { cls: "warn", text: "Risiko sederhana" } : { cls: "bad", text: "Risiko tinggi" };
-  return { score, grade, findings: f.sort((a, b) => ["bad", "warn", "info", "ok"].indexOf(a.level) - ["bad", "warn", "info", "ok"].indexOf(b.level)) };
+  const grade = score >= 75 ? { cls: "ok", text: "Low risk" } : score >= 50 ? { cls: "warn", text: "Medium risk" } : { cls: "bad", text: "High risk" };
+  return { score, grade, findings: f.sort((a, b) => ORDER.indexOf(a.level) - ORDER.indexOf(b.level)) };
 }
 
 export default function Report({
@@ -86,7 +88,7 @@ export default function Report({
   ca: string;
   market: Market | null;
   holders: HolderReport | null;
-  info: TokenInfo | null | undefined; // undefined = belum dimuat
+  info: TokenInfo | null | undefined; // undefined = still loading
   free?: string;
   onExtra?: (x: TokenExtra) => void;
 }) {
@@ -117,17 +119,17 @@ export default function Report({
   const m = market;
 
   const text = [
-    `🪐 Laporan ORBIT — ${m?.name ?? ""} ($${m?.symbol ?? ""})`,
+    `🪐 ORBIT Report — ${m?.name ?? ""} ($${m?.symbol ?? ""})`,
     `CA: ${ca}`,
-    `Skor keselamatan: ${a.score}/100 (${a.grade.text})`,
-    m ? `Harga ${m.priceUsd ?? "—"} · MC ${usd(m.marketCap)} · Liq ${usd(m.liquidityUsd)} · Vol 24j ${usd(m.volume24h)}` : "",
-    m?.changes ? `Perubahan: 5m ${pct(m.changes.m5)} · 1j ${pct(m.changes.h1)} · 6j ${pct(m.changes.h6)} · 24j ${pct(m.changes.h24)}` : "",
-    holders ? `Top 10 holder: ${holders.top10Pct.toFixed(1)}%` : "",
-    info?.narratives.length ? `Naratif: ${info.narratives.join(", ")}` : "",
+    `Safety score: ${a.score}/100 (${a.grade.text})`,
+    m ? `Price ${m.priceUsd ?? "—"} · MC ${usd(m.marketCap)} · Liq ${usd(m.liquidityUsd)} · Vol 24h ${usd(m.volume24h)}` : "",
+    m?.changes ? `Change: 5m ${pct(m.changes.m5)} · 1h ${pct(m.changes.h1)} · 6h ${pct(m.changes.h6)} · 24h ${pct(m.changes.h24)}` : "",
+    holders ? `Top 10 holders: ${holders.top10Pct.toFixed(1)}%` : "",
+    info?.narratives.length ? `Narrative: ${info.narratives.join(", ")}` : "",
     "",
     ...a.findings.map((x) => `${ICON[x.level]} ${x.text}`),
     "",
-    "Bukan nasihat kewangan — DYOR.",
+    "Not financial advice — DYOR.",
   ]
     .filter((l, i, arr) => l !== "" || arr[i - 1] !== "")
     .join("\n");
@@ -140,9 +142,9 @@ export default function Report({
           <span>/100</span>
         </div>
         <div>
-          <span className="label">Laporan ORBIT</span>
+          <span className="label">ORBIT Report</span>
           <div className={`grade ${a.grade.cls}`}>{a.grade.text}</div>
-          <span className="muted small">{loading ? "Menyemak dev & umur wallet top holder…" : "Skor dikira dari data on-chain & pasaran"}</span>
+          <span className="muted small">{loading ? "Checking dev & top-holder wallet ages…" : "Score based on on-chain & market data"}</span>
         </div>
       </div>
 
@@ -153,12 +155,12 @@ export default function Report({
             const tot = t.buys + t.sells || 1;
             return (
               <div key={w}>
-                <i>{w === "m5" ? "5m" : w === "h1" ? "1j" : w === "h6" ? "6j" : "24j"}</i>
+                <i>{w === "m5" ? "5m" : w === "h1" ? "1h" : w === "h6" ? "6h" : "24h"}</i>
                 <b className={(m.changes?.[w] ?? 0) >= 0 ? "up-t" : "down-t"}>{pct(m.changes?.[w])}</b>
                 <div className="bs-bar">
                   <span style={{ width: `${(t.buys / tot) * 100}%` }} />
                 </div>
-                <small className="muted">{t.buys} beli · {t.sells} jual</small>
+                <small className="muted">{t.buys} buys · {t.sells} sells</small>
               </div>
             );
           })}
@@ -176,14 +178,14 @@ export default function Report({
 
       {extra && extra.holders.some((h) => h.flag) && (
         <p className="muted small">
-          Wallet baru = umur &lt; 3 hari · senyap = ≤ 5 transaksi seumur hidup. Selalunya wallet dev/insider yang dipecahkan.
+          New wallet = less than 3 days old · silent = 5 or fewer transactions ever. Often a dev/insider splitting supply.
         </p>
       )}
 
       <div className="buy">
-        <CopyButton text={text} label="📋 Copy laporan" className="primary" />
+        <CopyButton text={text} label="📋 Copy report" className="primary" />
       </div>
-      <p className="muted small" style={{ marginTop: 8 }}>Skor ialah anggaran automatik — bukan jaminan coin selamat.</p>
+      <p className="muted small" style={{ marginTop: 8 }}>The score is an automatic estimate — not a guarantee the coin is safe.</p>
     </section>
   );
 }

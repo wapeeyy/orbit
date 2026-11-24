@@ -34,7 +34,7 @@ export function CopyButton({ text, label = "Copy CA", className = "" }: { text: 
         }
       }}
     >
-      {done ? "✓ Disalin" : label}
+      {done ? "✓ Copied" : label}
     </button>
   );
 }
@@ -50,7 +50,7 @@ export function BuyLinks({ ca, pair }: { ca: string; pair?: string | null }) {
       <CopyButton text={ca} className="primary" />
       {links.map((l) => (
         <a key={l.name} href={l.href} target="_blank" rel="noreferrer" className="buy-link">
-          Beli di {l.name} ↗
+          Buy on {l.name} ↗
         </a>
       ))}
     </div>

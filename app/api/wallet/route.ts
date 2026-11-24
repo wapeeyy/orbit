@@ -9,9 +9,9 @@ export const maxDuration = 45;
 // Trace wallet — ciri ORBIT Pro
 export async function GET(req: Request) {
   const address = new URL(req.url).searchParams.get("address")?.trim() ?? "";
-  if (!isValidMint(address)) return NextResponse.json({ error: "Alamat wallet tak sah" }, { status: 400 });
+  if (!isValidMint(address)) return NextResponse.json({ error: "Invalid wallet address" }, { status: 400 });
   if (!keyFrom(req)) {
-    return NextResponse.json({ error: "Trace wallet untuk pelanggan ORBIT Pro", locked: true }, { status: 402 });
+    return NextResponse.json({ error: "Wallet tracing is for ORBIT Pro subscribers", locked: true }, { status: 402 });
   }
   try {
     const data = await traceWallet(address);

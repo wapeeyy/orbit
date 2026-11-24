@@ -41,24 +41,24 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return fail("Permintaan tak sah");
+    return fail("Invalid request");
   }
-  if (!kvConfigured()) return fail("Sistem bayaran belum siap — hubungi admin", 503);
+  if (!kvConfigured()) return fail("Payments aren't set up yet — contact admin", 503);
 
   let signature = body.signature?.trim() ?? "";
   try {
     if (!signature && body.reference) {
-      if (!isValidMint(body.reference)) return fail("Reference tak sah");
+      if (!isValidMint(body.reference)) return fail("Invalid reference");
       const found = await findByReference(body.reference);
       if (!found) return NextResponse.json({ pending: true }, { headers: nocache });
       signature = found;
     }
-    if (!/^[1-9A-HJ-NP-Za-km-z]{80,90}$/.test(signature)) return fail("Transaction ID tak sah");
+    if (!/^[1-9A-HJ-NP-Za-km-z]{80,90}$/.test(signature)) return fail("Invalid transaction ID");
 
     const pay = await verifyPayment(signature);
     // Satu transaksi hanya boleh dituntut sekali
     const first = await setOnce(`used:${signature}`, JSON.stringify({ payer: pay.payer, at: Date.now() }), 400 * 86400);
-    if (!first) return fail("Transaksi ni dah digunakan. Kalau ni bayaran kau, masukkan semula kod akses kau.", 409);
+    if (!first) return fail("This transaction has already been used. If this was your payment, re-enter your access code.", 409);
 
     const current = verifyKey(req.headers.get("x-orbit-key"));
     const start = Math.max(Date.now(), current?.exp ?? 0);

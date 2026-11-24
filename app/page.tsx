@@ -13,6 +13,7 @@ import ProLock, { usePro } from "./ProLock";
 import type { TokenInfo } from "@/lib/info";
 import type { TokenExtra } from "@/lib/report";
 import { api, isActive, onKeyChange, setKey } from "./key";
+import { PRICE_LABEL } from "./price";
 import type { Market } from "@/lib/dex";
 import type { HolderReport } from "@/lib/holders";
 
@@ -86,17 +87,17 @@ export default function Home() {
           <span />
         </div>
         <h1>ORBIT</h1>
-        <p>Cari coin Solana yang okey, atau paste CA untuk semak harga, liquidity & siapa pegang supply.</p>
+        <p>Find Solana coins worth a look, or paste a CA to check price, liquidity & who holds the supply.</p>
       </header>
 
       <nav className="tabs">
         {(
           [
-            ["discover", "🔭", "Cari"],
+            ["discover", "🔭", "Discover"],
             ["scan", "🔍", "Scan"],
             ["wallet", "👛", "Wallet"],
             ["demo", "🎮", "Demo"],
-            ["sub", pro ? "✓" : "⭐", pro ? "Pro" : "Langgan"],
+            ["sub", pro ? "✓" : "⭐", pro ? "Pro" : "Subscribe"],
           ] as const
         ).map(([id, icon, label]) => (
           <button key={id} className={tab === id ? "on" : ""} onClick={() => setTab(id)}>
@@ -120,8 +121,8 @@ export default function Home() {
           <Demo onOpen={(ca) => openCa(ca)} />
         ) : (
           <ProLock
-            title="Demo trade untuk pelanggan Pro"
-            text="Latih strategi dengan 10 SOL tipu guna harga sebenar: beli, jual separuh atau semua, tengok untung rugi terus — tanpa risiko duit sebenar."
+            title="Demo trading is for Pro subscribers"
+            text="Practise with 10 fake SOL at real prices: buy, sell half or all, and watch your PnL live — no real money at risk."
             onSubscribe={goSub}
           />
         )}
@@ -130,7 +131,7 @@ export default function Home() {
         <Subscribe />
       </div>
 
-      <footer className="muted small">Data: DexScreener · Helius RPC. Bukan nasihat kewangan — DYOR.</footer>
+      <footer className="muted small">Data: DexScreener · Helius RPC. Not financial advice — DYOR.</footer>
     </main>
   );
 }
@@ -201,7 +202,7 @@ function ScanView({
         <input
           value={ca}
           onChange={(e) => setCa(e.target.value)}
-          placeholder="Contoh: DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"
+          placeholder="e.g. DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"
           spellCheck={false}
           autoComplete="off"
         />
@@ -211,12 +212,12 @@ function ScanView({
       {error && <div className="alert danger">{error}</div>}
       {locked && (
         <div className="card locked-cta">
-          <b>🔒 Scan CA untuk pelanggan ORBIT Pro</b>
+          <b>🔒 Scanning any CA is for ORBIT Pro subscribers</b>
           <span className="muted small">
-            Versi percuma boleh buka 3 coin teratas dalam Cari Coin. Langgan untuk scan mana-mana CA: holder, chart,
-            naratif dan post terakhir owner.
+            The free version opens the top 3 coins in Discover. Subscribe to scan any CA: holders, chart,
+            narrative and the owner's latest posts.
           </span>
-          <button className="copy primary" onClick={onSubscribe}>Langgan RM100 / bulan</button>
+          <button className="copy primary" onClick={onSubscribe}>Subscribe — {PRICE_LABEL}</button>
         </div>
       )}
 
@@ -240,13 +241,13 @@ function ScanView({
             <BuyLinks ca={data.ca} pair={m?.pairAddress} />
             {m ? (
               <div className="stats">
-                <Stat label="Harga" value={usd(m.priceUsd)} sub={m.change24h != null ? `${m.change24h > 0 ? "+" : ""}${m.change24h}% 24j` : undefined} tone={m.change24h == null ? undefined : m.change24h >= 0 ? "up" : "down"} />
+                <Stat label="Price" value={usd(m.priceUsd)} sub={m.change24h != null ? `${m.change24h > 0 ? "+" : ""}${m.change24h}% 24h` : undefined} tone={m.change24h == null ? undefined : m.change24h >= 0 ? "up" : "down"} />
                 <Stat label="Market cap" value={usd(m.marketCap ?? m.fdv)} sub={m.fdv ? `FDV ${usd(m.fdv)}` : undefined} />
-                <Stat label="Liquidity" value={usd(m.liquidityUsd)} sub={`${m.pairCount} pair · utama ${m.dexId}`} />
-                <Stat label="Volume 24j" value={usd(m.volume24h)} />
+                <Stat label="Liquidity" value={usd(m.liquidityUsd)} sub={`${m.pairCount} pairs · main ${m.dexId}`} />
+                <Stat label="Volume 24h" value={usd(m.volume24h)} />
               </div>
             ) : (
-              <p className="muted">{data.marketError ?? "Tiada pair di DexScreener untuk token ni."}</p>
+              <p className="muted">{data.marketError ?? "No DexScreener pair for this token."}</p>
             )}
           </section>
 
@@ -265,8 +266,8 @@ function ScanView({
             </>
           ) : (
             <ProLock
-              title="Laporan ORBIT & Demo beli"
-              text="Skor keselamatan 0–100, dev masih pegang berapa %, wallet baru/insider dalam top holder, tekanan beli vs jual, laporan sedia copy — dan demo beli coin ni dengan SOL tipu."
+              title="ORBIT Report & Demo buy"
+              text="0–100 safety score, how much the dev still holds, fresh/insider wallets among top holders, buy vs sell pressure, a copy-ready report — and demo-buy this coin with fake SOL."
               onSubscribe={onSubscribe}
             />
           )}
@@ -277,10 +278,10 @@ function ScanView({
 
           <section className="card">
             <div className="section-head">
-              <h3>Top holder</h3>
+              <h3>Top holders</h3>
               {h && (
                 <span className="muted small">
-                  Supply {num(h.supply)} · {h.scanned} akaun terbesar diimbas
+                  Supply {num(h.supply)} · {h.scanned} largest accounts scanned
                 </span>
               )}
             </div>
@@ -290,10 +291,10 @@ function ScanView({
             {h && (
               <>
                 <div className={`alert ${h.warning ? "danger" : "ok"}`}>
-                  <strong>Top 10 pegang {h.top10Pct.toFixed(2)}% supply</strong>
+                  <strong>Top 10 hold {h.top10Pct.toFixed(2)}% of supply</strong>
                   {h.warning
-                    ? " — ⚠️ Melebihi 30%. Supply tertumpu, risiko dump tinggi."
-                    : " — bawah had 30%, taburan nampak OK."}
+                    ? " — ⚠️ Over 30%. Supply is concentrated, high dump risk."
+                    : " — under the 30% limit, distribution looks OK."}
                   <div className="meter">
                     <div style={{ width: `${Math.min(h.top10Pct, 100)}%` }} />
                     <i style={{ left: "30%" }} />
@@ -301,17 +302,17 @@ function ScanView({
                 </div>
 
                 <div className="badges">
-                  <Badge ok={h.mintAuthority === null} yes="Mint authority revoked" no="Mint authority AKTIF — dev boleh cetak token baru" />
-                  <Badge ok={h.freezeAuthority === null} yes="Freeze authority revoked" no="Freeze authority AKTIF — dev boleh beku wallet" />
+                  <Badge ok={h.mintAuthority === null} yes="Mint authority revoked" no="Mint authority ACTIVE — dev can mint new tokens" />
+                  <Badge ok={h.freezeAuthority === null} yes="Freeze authority revoked" no="Freeze authority ACTIVE — dev can freeze wallets" />
                 </div>
 
-                <p className="muted small" style={{ margin: "0 0 8px" }}>Tekan wallet untuk trace: apa dia beli, jual & untung rugi.</p>
+                <p className="muted small" style={{ margin: "0 0 8px" }}>Tap a wallet to trace it: what it buys, sells & its PnL.</p>
                 <table>
                   <thead>
                     <tr>
                       <th>#</th>
                       <th>Wallet</th>
-                      <th className="r">Jumlah</th>
+                      <th className="r">Amount</th>
                       <th className="r">% supply</th>
                     </tr>
                   </thead>
@@ -320,15 +321,15 @@ function ScanView({
                       <tr key={x.owner} className={x.rank <= 10 ? "top10" : undefined}>
                         <td>{x.rank}</td>
                         <td>
-                          <button type="button" className="linkish" onClick={() => onTrace(x.owner)} title="Trace wallet ni">
+                          <button type="button" className="linkish" onClick={() => onTrace(x.owner)} title="Trace this wallet">
                             <span className="full">{x.owner}</span>
                             <span className="short">{short(x.owner)}</span>
                           </button>
                           {(() => {
                             const a = extra?.holders.find((y) => y.owner === x.owner);
                             if (info?.dev === x.owner) return <span className="flag dev">DEV</span>;
-                            if (a?.flag === "baru") return <span className="flag">BARU {a.ageDays != null ? `${a.ageDays.toFixed(1)}h` : ""}</span>;
-                            if (a?.flag === "senyap") return <span className="flag">SENYAP {a.txCount}tx</span>;
+                            if (a?.flag === "baru") return <span className="flag">NEW {a.ageDays != null ? `${a.ageDays.toFixed(1)}d` : ""}</span>;
+                            if (a?.flag === "senyap") return <span className="flag">SILENT {a.txCount}tx</span>;
                             return null;
                           })()}
                         </td>
@@ -345,7 +346,7 @@ function ScanView({
                 {h.excluded.length > 0 && (
                   <details>
                     <summary>
-                      {h.excluded.length} akaun ditapis (pool / bonding curve / program) —{" "}
+                      {h.excluded.length} accounts filtered out (pool / bonding curve / program) —{" "}
                       {h.excluded.reduce((s, x) => s + x.pct, 0).toFixed(2)}% supply
                     </summary>
                     <ul className="excluded">

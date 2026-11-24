@@ -18,7 +18,7 @@ export async function GET(req: Request) {
   const token = q.get("token") ?? "";
   const tf = TF[q.get("tf") ?? "15m"] ? (q.get("tf") ?? "15m") : "15m";
   if (!isValidMint(pool) || !isValidMint(token)) {
-    return NextResponse.json({ error: "Alamat pool/token tak sah" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid pool/token address" }, { status: 400 });
   }
   const [frame, agg, limit] = TF[tf];
   const url =
@@ -27,7 +27,7 @@ export async function GET(req: Request) {
 
   const res = await fetch(url, { headers: { accept: "application/json" }, cache: "no-store" });
   if (!res.ok) {
-    const msg = res.status === 429 ? "Terlalu banyak permintaan chart — cuba lagi sekejap" : `GeckoTerminal ${res.status}`;
+    const msg = res.status === 429 ? "Too many chart requests — try again shortly" : `GeckoTerminal ${res.status}`;
     return NextResponse.json({ error: msg }, { status: res.status === 404 ? 404 : 502 });
   }
   const json = await res.json();

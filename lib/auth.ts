@@ -2,7 +2,7 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 const secret = () => {
   const s = process.env.ORBIT_SECRET || process.env.HELIUS_API_KEY;
-  if (!s) throw new Error("ORBIT_SECRET belum diset");
+  if (!s) throw new Error("ORBIT_SECRET is not set");
   return s;
 };
 const mac = (data: string) => createHmac("sha256", secret()).update(data).digest("base64url");

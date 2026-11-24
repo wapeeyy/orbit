@@ -7,19 +7,19 @@ import { api } from "./key";
 
 export function ago(iso: string) {
   const s = (Date.now() - Date.parse(iso)) / 1000;
-  if (s < 60) return "baru sahaja";
-  if (s < 3600) return `${Math.floor(s / 60)} minit lalu`;
-  if (s < 86400) return `${Math.floor(s / 3600)} jam lalu`;
-  if (s < 86400 * 30) return `${Math.floor(s / 86400)} hari lalu`;
-  return `${Math.floor(s / (86400 * 30))} bulan lalu`;
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  if (s < 86400 * 30) return `${Math.floor(s / 86400)}d ago`;
+  return `${Math.floor(s / (86400 * 30))} mo ago`;
 }
 
 function freshness(iso: string | null) {
   if (!iso) return { cls: "", label: "" };
   const h = (Date.now() - Date.parse(iso)) / 3_600_000;
-  if (h < 24) return { cls: "ok", label: "Aktif" };
-  if (h < 24 * 7) return { cls: "warn", label: "Kurang aktif" };
-  return { cls: "bad", label: "Senyap" };
+  if (h < 24) return { cls: "ok", label: "Active" };
+  if (h < 24 * 7) return { cls: "warn", label: "Quiet" };
+  return { cls: "bad", label: "Silent" };
 }
 
 const host = (u: string) => {
@@ -61,19 +61,19 @@ export default function About({ ca, free, onInfo }: { ca: string; free?: string;
   return (
     <section className="card">
       <div className="section-head">
-        <h3>Tentang coin</h3>
-        {info?.launchpad && <span className="muted small">Dilancar di {info.launchpad}</span>}
+        <h3>About this coin</h3>
+        {info?.launchpad && <span className="muted small">Launched on {info.launchpad}</span>}
       </div>
 
       {error && <div className="alert danger">Info: {error}</div>}
-      {!info && !error && <p className="muted">Mencari naratif, link & aktiviti owner…</p>}
+      {!info && !error && <p className="muted">Looking up narrative, links & owner activity…</p>}
 
       {info && (
         <>
           <div className="narr">
-            <span className="label">Naratif</span>
+            <span className="label">Narrative</span>
             <div className="tags">
-              {(info.narratives.length ? info.narratives : ["Meme / umum"]).map((t) => (
+              {(info.narratives.length ? info.narratives : ["Meme / general"]).map((t) => (
                 <span key={t} className="chip">{t}</span>
               ))}
             </div>
@@ -83,7 +83,7 @@ export default function About({ ca, free, onInfo }: { ca: string; free?: string;
               {info.description}
             </p>
           ) : (
-            <p className="muted small">Dev tak tulis penerangan untuk coin ni.</p>
+            <p className="muted small">The dev didn't write a description for this coin.</p>
           )}
 
           <div className="links">
@@ -101,14 +101,14 @@ export default function About({ ca, free, onInfo }: { ca: string; free?: string;
             ))}
             {!info.websites.length && !info.twitter && !info.telegram && !info.others.length && (
               <span className="alert danger small" style={{ margin: 0 }}>
-                ⚠️ Tiada website, X atau Telegram — tanda merah untuk coin baru
+                ⚠️ No website, X or Telegram — a red flag for a new coin
               </span>
             )}
           </div>
 
           {info.activity.length > 0 && (
             <div className="activity">
-              <span className="label">Post terakhir owner</span>
+              <span className="label">Owner's latest posts</span>
               {info.activity.map((a) => (
                 <ActivityRow key={a.platform} a={a} />
               ))}
@@ -116,7 +116,7 @@ export default function About({ ca, free, onInfo }: { ca: string; free?: string;
           )}
 
           <div className="meta-row muted small">
-            {info.holderCount != null && <span>{info.holderCount.toLocaleString("en-US")} holder</span>}
+            {info.holderCount != null && <span>{info.holderCount.toLocaleString("en-US")} holders</span>}
             {info.dev && (
               <span className="dev">
                 Dev:{" "}
@@ -144,14 +144,14 @@ function ActivityRow({ a }: { a: Activity }) {
             {f.label} · {ago(a.lastPostAt)}
           </span>
         ) : (
-          <span className="pill">Tak dapat semak</span>
+          <span className="pill">Can't check</span>
         )}
       </div>
       {a.lastText && <p className="act-text">“{a.lastText}”</p>}
       {a.note && <p className="muted small">{a.note}</p>}
       {a.lastPostAt && (
         <p className="muted small">
-          {new Date(a.lastPostAt).toLocaleString("ms-MY", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+          {new Date(a.lastPostAt).toLocaleString("en-US", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
         </p>
       )}
     </a>
