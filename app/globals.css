@@ -422,3 +422,79 @@ footer { font-family: var(--narrow); letter-spacing: 0.16em; text-transform: upp
   .brand h1 { font-size: 36px; }
   .tabs button { font-size: 10px; letter-spacing: 0.14em; }
 }
+
+/* ================= All pairs (DexScreener-style market) ================= */
+.mode-switch { margin-bottom: 14px; }
+.mode-switch button { flex: 1; justify-content: center; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.live-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px var(--ok); margin-right: 6px; vertical-align: 1px; animation: blink 1.6s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: 0.35; } }
+.m-lists { margin-bottom: 10px; }
+.m-tools { display: grid; gap: 8px; margin-bottom: 10px; }
+.m-search { margin-bottom: 0; }
+.m-bar { display: flex; gap: 6px; align-items: stretch; }
+.m-bar .ghost { padding: 9px 12px; }
+.ghost.is-on { border-color: var(--text); color: var(--text); background: rgba(255,255,255,0.08); }
+.m-sort { flex: 1; display: flex; }
+.m-sort select { flex: 1; min-width: 0; background: rgba(0,0,0,0.55); color: var(--text); border: 1px solid var(--line-strong); border-radius: 2px; padding: 8px 10px; font-family: var(--narrow); font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; }
+.m-filters { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px 14px; }
+.m-f-group { display: grid; gap: 5px; min-width: 0; }
+.m-f-wide { grid-column: 1 / -1; }
+.m-range { display: flex; gap: 6px; }
+.m-range input { flex: 1; min-width: 0; background: rgba(0,0,0,0.55); border: 1px solid var(--line); color: var(--text); border-radius: 2px; padding: 8px 9px; font-family: var(--mono); font-size: 13px; }
+.m-range input:focus { border-color: var(--line-strong); outline: none; }
+.m-f-group .chips .ghost { padding: 6px 10px; font-size: 11px; }
+.m-f-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
+.m-status { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; margin: 4px 0 8px; }
+.m-status .eyebrow { margin: 0; font-size: 11px; }
+.m-note { color: var(--gold); }
+
+.m-table { display: grid; border-top: 1px solid var(--line); margin-bottom: 12px; }
+.m-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "tok price" "stats stats"; gap: 6px 10px; padding: 10px 6px; border-bottom: 1px solid var(--line); cursor: pointer; background: rgba(0,0,0,0.35); }
+.m-row:hover, .m-row:focus-visible { background: rgba(255,255,255,0.04); }
+.m-row.is-fresh { animation: fresh 2.4s ease-out 3; }
+@keyframes fresh { 0% { background: rgba(111,227,168,0.18); } 100% { background: rgba(0,0,0,0.35); } }
+.m-head { display: none; }
+.m-tok { grid-area: tok; display: flex; align-items: center; gap: 9px; min-width: 0; }
+.m-rank { font-style: normal; font-family: var(--mono); font-size: 11px; color: var(--faint); width: 22px; flex-shrink: 0; }
+.m-tok img, .m-av { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; object-fit: cover; }
+.m-av { display: grid; place-items: center; border: 1px solid var(--line-strong); font-family: var(--narrow); font-size: 11px; color: var(--muted); }
+.m-name { display: grid; min-width: 0; }
+.m-name b { font-weight: 600; letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-name small { color: var(--faint); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-new { font-style: normal; margin-left: 6px; font-family: var(--narrow); letter-spacing: 0.16em; color: var(--ok); }
+.m-price { grid-area: price; font-family: var(--mono); font-size: 13px; text-align: right; align-self: center; }
+.m-row > span:not(.m-tok):not(.m-price) { font-family: var(--mono); font-size: 12px; display: grid; }
+.m-row > span i { font-style: normal; font-family: var(--narrow); font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); }
+/* phone: DexScreener-like compact row — name | price + 24h, then age · vol · liq · mc */
+.m-row { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-areas: "tok tok tok price" "tok tok tok c24" "age vol liq mc"; row-gap: 2px; padding: 9px 6px; }
+.m-tok { grid-area: tok; } .m-price { grid-area: price; align-self: end; }
+.m-row > .m-c24 { grid-area: c24; text-align: right; display: block !important; font-size: 12px; }
+.m-row > .m-c24 i, .m-row > .m-age i, .m-row > .m-vol i, .m-row > .m-liq i, .m-row > .m-mc i { display: none; }
+.m-age { grid-area: age; } .m-vol { grid-area: vol; } .m-liq { grid-area: liq; } .m-mc { grid-area: mc; }
+.m-row > .m-age::before { content: "AGE "; } .m-row > .m-vol::before { content: "VOL "; } .m-row > .m-liq::before { content: "LIQ "; } .m-row > .m-mc::before { content: "MC "; }
+.m-row > .m-age::before, .m-row > .m-vol::before, .m-row > .m-liq::before, .m-row > .m-mc::before { font-family: var(--narrow); font-size: 9.5px; letter-spacing: 0.14em; color: var(--faint); }
+.m-row > .m-age, .m-row > .m-vol, .m-row > .m-liq, .m-row > .m-mc { display: block !important; font-size: 11.5px; padding-left: 31px; margin-top: 4px; white-space: nowrap; }
+.m-row > .m-vol, .m-row > .m-liq, .m-row > .m-mc { padding-left: 0; }
+.m-row > .m-tx, .m-row > .m-c5, .m-row > .m-c1, .m-row > .m-c6 { display: none !important; }
+.m-empty { padding: 18px 6px; }
+.m-src { text-align: center; margin-top: 10px; }
+
+@media (min-width: 900px) {
+  main:has(.market:not([hidden])) { max-width: 1240px; }
+  .m-filters { grid-template-columns: repeat(4, minmax(0,1fr)); }
+  .m-tools { grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; }
+  .m-head { display: grid; cursor: default; background: transparent; }
+  .m-row { grid-template-columns: minmax(180px, 2.2fr) 1.2fr 0.6fr 0.8fr 0.9fr repeat(4, 0.7fr) 0.9fr 0.9fr; grid-template-areas: none; align-items: center; padding: 9px 8px; row-gap: 0; }
+  .m-tok, .m-price, .m-row > .m-c24, .m-age, .m-vol, .m-liq, .m-mc { grid-area: auto; }
+  .m-row > .m-tx, .m-row > .m-c5, .m-row > .m-c1, .m-row > .m-c6 { display: grid !important; }
+  .m-row > .m-c24 { text-align: left; display: grid !important; font-size: 12px; }
+  .m-row > .m-age, .m-row > .m-vol, .m-row > .m-liq, .m-row > .m-mc { display: grid !important; padding-left: 0; margin-top: 0; font-size: 12px; }
+  .m-row > .m-age::before, .m-row > .m-vol::before, .m-row > .m-liq::before, .m-row > .m-mc::before { content: none; }
+  .m-price { align-self: center; }
+  .m-price { text-align: left; }
+  .m-row > span i { display: none; }
+  .m-head > * { font-family: var(--narrow); font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); background: none; border: 0; padding: 0; text-align: left; cursor: pointer; }
+  .m-head > span { cursor: default; }
+  .m-head > button.on { color: var(--text); }
+}

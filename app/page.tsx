@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Discover from "./Discover";
+import MarketList from "./Market";
 import Chart from "./Chart";
 import About from "./About";
 import { BuyLinks } from "./Copy";
@@ -41,6 +42,19 @@ const short = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
 
 export default function Home() {
   const [tab, setTab] = useState<"scan" | "discover" | "wallet" | "demo" | "sub">("discover");
+  const [mode, setMode] = useState<"all" | "picks">("all");
+  useEffect(() => {
+    try {
+      const m = localStorage.getItem("orbit.discover.mode");
+      if (m === "picks" || m === "all") setMode(m);
+    } catch {}
+  }, []);
+  const pickMode = (m: "all" | "picks") => {
+    setMode(m);
+    try {
+      localStorage.setItem("orbit.discover.mode", m);
+    } catch {}
+  };
   const [walletReq, setWalletReq] = useState<{ address: string; n: number } | null>(null);
   const top = () => window.scrollTo({ top: 0, behavior: "smooth" });
   const openCa = (ca: string, free?: string) => {
@@ -108,7 +122,20 @@ export default function Home() {
       </nav>
 
       <div hidden={tab !== "discover"}>
-        <Discover onSubscribe={goSub} onOpen={openCa} />
+        <div className="views mode-switch" role="tablist" aria-label="Discover mode">
+          <button role="tab" aria-selected={mode === "all"} className={mode === "all" ? "on" : ""} onClick={() => pickMode("all")}>
+            All pairs
+          </button>
+          <button role="tab" aria-selected={mode === "picks"} className={mode === "picks" ? "on" : ""} onClick={() => pickMode("picks")}>
+            ORBIT picks
+          </button>
+        </div>
+        <div hidden={mode !== "all"}>
+          <MarketList onOpen={(ca) => openCa(ca)} />
+        </div>
+        <div hidden={mode !== "picks"}>
+          <Discover onSubscribe={goSub} onOpen={openCa} />
+        </div>
       </div>
       <div hidden={tab !== "scan"}>
         <ScanView request={scanCa} onSubscribe={goSub} onTrace={trace} />
