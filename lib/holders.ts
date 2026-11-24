@@ -40,8 +40,8 @@ async function rpc<T>(method: string, params: unknown[], attempt = 0): Promise<T
     body: JSON.stringify({ jsonrpc: "2.0", id: method, method, params }),
     cache: "no-store",
   });
-  if (res.status === 429 && attempt < 3) {
-    await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+  if (res.status === 429 && attempt < 4) {
+    await new Promise((r) => setTimeout(r, 700 * 2 ** attempt));
     return rpc<T>(method, params, attempt + 1);
   }
   if (!res.ok) throw new Error(`RPC ${method} HTTP ${res.status}`);

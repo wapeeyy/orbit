@@ -13,7 +13,10 @@ const SOURCES: { path: string; tag: string }[] = [
 const PRE_MIN_LIQ = 5_000;
 const PRE_MIN_MC = 10_000;
 const MAX_HOLDER_CHECKS = 30;
-const CONCURRENCY = 3;
+const CONCURRENCY = 1; // plan percuma Helius cepat kena 429
+const TIME_BUDGET_MS = 45_000; // pulangkan hasil sebelum had masa fungsi Vercel
+const HOLDER_TTL_MS = 10 * 60_000;
+const holderCache = new Map<string, { at: number; v: NonNullable<Candidate["holders"]> }>();
 
 export type Candidate = {
   ca: string;
@@ -130,7 +133,17 @@ export async function discover(): Promise<DiscoverResult> {
     .sort((a, b) => b.volume24h - a.volume24h)
     .slice(0, MAX_HOLDER_CHECKS);
 
+  const started = Date.now();
   await pool(toCheck, CONCURRENCY, async (c) => {
+    const hit = holderCache.get(c.ca);
+    if (hit && Date.now() - hit.at < HOLDER_TTL_MS) {
+      c.holders = hit.v;
+      return;
+    }
+    if (Date.now() - started > TIME_BUDGET_MS) {
+      c.holdersError = "Belum sempat disemak — cuba refresh";
+      return;
+    }
     try {
       const pairAddr = best.get(c.ca)!.pairAddress;
       const h = await getHolders(c.ca, { [pairAddr]: c.dexId });
@@ -141,6 +154,7 @@ export async function discover(): Promise<DiscoverResult> {
         mintRevoked: h.mintAuthority === null,
         freezeRevoked: h.freezeAuthority === null,
       };
+      holderCache.set(c.ca, { at: Date.now(), v: c.holders });
     } catch (e) {
       c.holdersError = (e as Error).message;
     }
