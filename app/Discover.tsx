@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Candidate, DiscoverResult } from "@/lib/discover";
+import { CopyButton } from "./Copy";
 
 type Filters = {
   minLiq: number;
@@ -143,7 +144,14 @@ export default function Discover({ onOpen }: { onOpen: (ca: string) => void }) {
 
       <div className="list">
         {shown.map(({ c, why }) => (
-          <button key={c.ca} className={`coin ${why.length ? "fail" : "pass"}`} onClick={() => onOpen(c.ca)}>
+          <div
+            key={c.ca}
+            role="button"
+            tabIndex={0}
+            className={`coin ${why.length ? "fail" : "pass"}`}
+            onClick={() => onOpen(c.ca)}
+            onKeyDown={(e) => e.key === "Enter" && onOpen(c.ca)}
+          >
             <div className="coin-top">
               {c.image ? <img src={c.image} alt="" /> : <div className="noimg">{c.symbol.slice(0, 2)}</div>}
               <div className="coin-name">
@@ -173,7 +181,11 @@ export default function Discover({ onOpen }: { onOpen: (ca: string) => void }) {
               ))}
               <span className="tag">{c.dexId}</span>
             </div>
-          </button>
+            <div className="coin-actions">
+              <CopyButton text={c.ca} />
+              <span className="muted small">Tekan kad untuk chart & holder →</span>
+            </div>
+          </div>
         ))}
         {data && shown.length === 0 && (
           <div className="card muted">

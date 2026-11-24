@@ -26,6 +26,7 @@ export type Market = {
   change24h: number | null;
   dexId: string | null;
   url: string | null;
+  pairAddress: string | null;
   pairCount: number;
   pairAddresses: Record<string, string>; // pairAddress -> dexId
 };
@@ -57,6 +58,7 @@ export async function getMarket(mint: string): Promise<Market | null> {
     change24h: main.priceChange?.h24 ?? null,
     dexId: main.dexId,
     url: main.url,
+    pairAddress: main.pairAddress,
     pairCount: pairs.length,
     pairAddresses,
   };

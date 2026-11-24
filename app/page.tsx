@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Discover from "./Discover";
+import Chart from "./Chart";
+import { BuyLinks } from "./Copy";
 import type { Market } from "@/lib/dex";
 import type { HolderReport } from "@/lib/holders";
 
@@ -136,6 +138,7 @@ function ScanView({ request }: { request: { ca: string; n: number } | null }) {
                 </a>
               )}
             </div>
+            <BuyLinks ca={data.ca} pair={m?.pairAddress} />
             {m ? (
               <div className="stats">
                 <Stat label="Harga" value={usd(m.priceUsd)} sub={m.change24h != null ? `${m.change24h > 0 ? "+" : ""}${m.change24h}% 24j` : undefined} tone={m.change24h == null ? undefined : m.change24h >= 0 ? "up" : "down"} />
@@ -147,6 +150,8 @@ function ScanView({ request }: { request: { ca: string; n: number } | null }) {
               <p className="muted">{data.marketError ?? "Tiada pair di DexScreener untuk token ni."}</p>
             )}
           </section>
+
+          {m?.pairAddress && <Chart key={m.pairAddress} pool={m.pairAddress} token={data.ca} />}
 
           <section className="card">
             <div className="section-head">
