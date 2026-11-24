@@ -5,6 +5,7 @@ import QRCode from "qrcode";
 import { useEffect, useMemo, useState } from "react";
 import { CopyButton } from "./Copy";
 import { api, getKey, keyExpiry, setKey } from "./key";
+import { ADMIN_WA_DISPLAY, adminWa } from "./contact";
 
 type Config = {
   ready: boolean;
@@ -99,6 +100,9 @@ export default function Subscribe() {
 
       <a className="buy-link guide-link" href="/panduan-orbit.pdf" target="_blank" rel="noreferrer">
         📄 Panduan daftar, bayar &amp; install app (PDF)
+      </a>
+      <a className="buy-link guide-link" href={adminWa()} target="_blank" rel="noreferrer">
+        💬 Ada soalan atau masalah bayaran? WhatsApp admin · {ADMIN_WA_DISPLAY}
       </a>
 
       <p className="muted small disclaimer">
@@ -224,6 +228,17 @@ function PayBox({ cfg, onPaid }: { cfg: Config; onPaid: (key: string) => void })
         </button>
       </div>
       {status && <div className={`alert ${status.startsWith("✓") ? "ok" : "danger"}`}>{status}</div>}
+      {status && !status.startsWith("✓") && status !== "Menyemak transaksi…" && (
+        <a
+          className="buy-link"
+          href={adminWa(`Hai admin ORBIT, bayaran saya bermasalah.\nTxID: ${sig.trim() || "-"}\nMesej: ${status}`)}
+          target="_blank"
+          rel="noreferrer"
+          style={{ marginBottom: 12 }}
+        >
+          💬 WhatsApp admin ({ADMIN_WA_DISPLAY})
+        </a>
+      )}
       <p className="muted small">Bayar lebih = tempoh lebih (contoh: 2× harga = 60 hari, maksimum 12 bulan).</p>
     </div>
   );
