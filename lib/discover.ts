@@ -1,6 +1,6 @@
 import type { DexPair } from "./dex";
 import { getHolders } from "./holders";
-import { fetchCandles, narratives, volumeZone, type VolumeZone } from "./analysis";
+import { narratives, type VolumeZone } from "./analysis";
 
 // Senarai coin Solana yang DexScreener tengah tonjolkan
 const SOURCES: { path: string; tag: string }[] = [
@@ -17,10 +17,6 @@ const MAX_HOLDER_CHECKS = 30;
 const CONCURRENCY = 1; // plan percuma Helius cepat kena 429
 const TIME_BUDGET_MS = 45_000; // pulangkan hasil sebelum had masa fungsi Vercel
 const HOLDER_TTL_MS = 10 * 60_000;
-const ZONE_BUDGET_MS = 38_000;
-const MAX_ZONE_CHECKS = 25; // GeckoTerminal percuma: 30 permintaan/minit
-const ZONE_TTL_MS = 10 * 60_000;
-const zoneCache = new Map<string, { at: number; v: VolumeZone | null }>();
 const holderCache = new Map<string, { at: number; v: NonNullable<Candidate["holders"]> }>();
 
 export type Candidate = {
@@ -50,7 +46,8 @@ export type Candidate = {
   description: string | null;
   narratives: string[];
   links: { type: string; url: string }[];
-  zone: VolumeZone | null;
+  pairAddress: string;
+  zone?: VolumeZone | null; // diisi oleh browser melalui /api/zone
 };
 
 export type DiscoverResult = { updatedAt: number; scanned: number; candidates: Candidate[] };
@@ -67,8 +64,6 @@ async function getJson<T>(url: string): Promise<T> {
   if (!res.ok) throw new Error(`DexScreener ${res.status}`);
   return res.json() as Promise<T>;
 }
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function pool<T, R>(items: T[], n: number, fn: (x: T) => Promise<R>): Promise<R[]> {
   const out: R[] = new Array(items.length);
@@ -145,7 +140,7 @@ export async function discover(): Promise<DiscoverResult> {
       ...(p.info?.websites ?? []).slice(0, 1).map((w) => ({ type: "website", url: w.url })),
       ...(p.info?.socials ?? []).filter((x) => x.type === "twitter" || x.type === "telegram"),
     ],
-    zone: null,
+    pairAddress: p.pairAddress,
   }));
 
   // 3. Semak holder untuk yang lepas penapis awal (ikut volume tertinggi)
@@ -155,29 +150,6 @@ export async function discover(): Promise<DiscoverResult> {
     .slice(0, MAX_HOLDER_CHECKS);
 
   const started = Date.now();
-  // GeckoTerminal percuma ~30/minit: satu-satu, jarak 2.1 s, cuba semula sekali bila 429
-  const zoneJob = (async () => {
-    for (const c of toCheck.slice(0, MAX_ZONE_CHECKS)) {
-      const hit = zoneCache.get(c.ca);
-      if (hit && Date.now() - hit.at < ZONE_TTL_MS) {
-        c.zone = hit.v;
-        continue;
-      }
-      if (Date.now() - started > ZONE_BUDGET_MS) break;
-      const pair = best.get(c.ca)!.pairAddress;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          c.zone = volumeZone(await fetchCandles(pair, c.ca, "minute", 15, 192));
-          zoneCache.set(c.ca, { at: Date.now(), v: c.zone });
-          break;
-        } catch (e) {
-          if ((e as { status?: number }).status !== 429) break;
-          await sleep(4000);
-        }
-      }
-      await sleep(2100);
-    }
-  })();
   const holderJob = pool(toCheck, CONCURRENCY, async (c) => {
     const hit = holderCache.get(c.ca);
     if (hit && Date.now() - hit.at < HOLDER_TTL_MS) {
@@ -203,7 +175,7 @@ export async function discover(): Promise<DiscoverResult> {
       c.holdersError = (e as Error).message;
     }
   });
-  await Promise.all([zoneJob, holderJob]);
+  await holderJob;
 
   candidates = candidates.sort((a, b) => b.volume24h - a.volume24h);
   const data = { updatedAt: now, scanned: cas.length, candidates };

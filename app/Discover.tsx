@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { VolumeZone } from "@/lib/analysis";
 import type { Candidate, DiscoverResult } from "@/lib/discover";
 import { CopyButton } from "./Copy";
 import { fmtPrice } from "./Chart";
@@ -55,6 +56,10 @@ export default function Discover({ onOpen }: { onOpen: (ca: string) => void }) {
   const [error, setError] = useState<string | null>(null);
   const [f, setF] = useState<Filters>(DEFAULTS);
   const [view, setView] = useState<"pass" | "zone" | "all">("pass");
+  const [zones, setZones] = useState<Record<string, VolumeZone | null>>({});
+  const zonesRef = useRef(zones);
+  zonesRef.current = zones;
+  const [zoneBusy, setZoneBusy] = useState<{ done: number; total: number } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
@@ -93,9 +98,42 @@ export default function Discover({ onOpen }: { onOpen: (ca: string) => void }) {
     return () => clearInterval(t);
   }, [load]);
 
+  // Kira zon volume satu-satu (GeckoTerminal ~30/minit; CDN simpan 10 minit)
+  useEffect(() => {
+    if (!data) return;
+    let dead = false;
+    const todo = data.candidates
+      .filter((c) => c.holders && !(c.ca in zonesRef.current))
+      .slice(0, 30);
+    if (todo.length === 0) return;
+    (async () => {
+      setZoneBusy({ done: 0, total: todo.length });
+      for (let i = 0; i < todo.length && !dead; i++) {
+        const c = todo[i];
+        try {
+          const r = await fetch(`/api/zone?pool=${c.pairAddress}&token=${c.ca}`);
+          if (r.ok) {
+            const j = await r.json();
+            if (!dead) setZones((z) => ({ ...z, [c.ca]: j.zone }));
+            if (r.headers.get("x-vercel-cache") === "HIT") {
+              if (!dead) setZoneBusy({ done: i + 1, total: todo.length });
+              continue; // dari cache CDN, tak guna kuota GeckoTerminal
+            }
+          }
+        } catch {}
+        if (!dead) setZoneBusy({ done: i + 1, total: todo.length });
+        await new Promise((res) => setTimeout(res, 2200));
+      }
+      if (!dead) setZoneBusy(null);
+    })();
+    return () => {
+      dead = true;
+    };
+  }, [data]);
+
   const rows = useMemo(
-    () => (data?.candidates ?? []).map((c) => ({ c, why: reasons(c, f) })),
-    [data, f],
+    () => (data?.candidates ?? []).map((c) => ({ c: { ...c, zone: zones[c.ca] }, why: reasons(c, f) })),
+    [data, f, zones],
   );
   const passed = rows.filter((r) => r.why.length === 0);
   const nearZone = passed
@@ -158,6 +196,11 @@ export default function Discover({ onOpen }: { onOpen: (ca: string) => void }) {
             Semua ({rows.length})
           </button>
         </div>
+      )}
+      {view === "zone" && zoneBusy && (
+        <p className="small zone-note" style={{ color: "#ffb84d" }}>
+          Mengira zon volume… {zoneBusy.done}/{zoneBusy.total} coin (senarai bertambah sendiri)
+        </p>
       )}
       {view === "zone" && (
         <p className="muted small zone-note">
