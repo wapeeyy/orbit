@@ -33,7 +33,7 @@ function rpcUrl() {
   return `https://mainnet.helius-rpc.com/?api-key=${key}`;
 }
 
-async function rpc<T>(method: string, params: unknown[], attempt = 0): Promise<T> {
+export async function rpc<T>(method: string, params: unknown[] | Record<string, unknown>, attempt = 0): Promise<T> {
   const res = await fetch(rpcUrl(), {
     method: "POST",
     headers: { "content-type": "application/json" },

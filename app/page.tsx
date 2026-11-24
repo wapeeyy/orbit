@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Discover from "./Discover";
 import Chart from "./Chart";
+import About from "./About";
 import { BuyLinks } from "./Copy";
 import type { Market } from "@/lib/dex";
 import type { HolderReport } from "@/lib/holders";
@@ -150,6 +151,8 @@ function ScanView({ request }: { request: { ca: string; n: number } | null }) {
               <p className="muted">{data.marketError ?? "Tiada pair di DexScreener untuk token ni."}</p>
             )}
           </section>
+
+          <About key={"about-" + data.ca} ca={data.ca} />
 
           {m?.pairAddress && <Chart key={m.pairAddress} pool={m.pairAddress} token={data.ca} />}
 

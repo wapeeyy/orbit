@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Candidate, DiscoverResult } from "@/lib/discover";
 import { CopyButton } from "./Copy";
+import { fmtPrice } from "./Chart";
 
 type Filters = {
   minLiq: number;
@@ -53,7 +54,7 @@ export default function Discover({ onOpen }: { onOpen: (ca: string) => void }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [f, setF] = useState<Filters>(DEFAULTS);
-  const [showAll, setShowAll] = useState(false);
+  const [view, setView] = useState<"pass" | "zone" | "all">("pass");
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
@@ -97,7 +98,10 @@ export default function Discover({ onOpen }: { onOpen: (ca: string) => void }) {
     [data, f],
   );
   const passed = rows.filter((r) => r.why.length === 0);
-  const shown = showAll ? rows : passed;
+  const nearZone = passed
+    .filter((r) => r.c.zone?.near)
+    .sort((a, b) => Math.abs(a.c.zone!.distPct) - Math.abs(b.c.zone!.distPct));
+  const shown = view === "pass" ? passed : view === "zone" ? nearZone : rows;
 
   return (
     <section>
@@ -142,6 +146,26 @@ export default function Discover({ onOpen }: { onOpen: (ca: string) => void }) {
 
       {error && <div className="alert danger">{error}</div>}
 
+      {data && (
+        <div className="views">
+          <button className={view === "pass" ? "on" : ""} onClick={() => setView("pass")}>
+            ✓ Lulus ({passed.length})
+          </button>
+          <button className={view === "zone" ? "on" : ""} onClick={() => setView("zone")}>
+            🎯 Dekat zon volume ({nearZone.length})
+          </button>
+          <button className={view === "all" ? "on" : ""} onClick={() => setView("all")}>
+            Semua ({rows.length})
+          </button>
+        </div>
+      )}
+      {view === "zone" && (
+        <p className="muted small zone-note">
+          Coin yang lulus penapis <b>dan</b> harga sekarang berada dalam (atau ±5%) julat harga paling banyak volume
+          dalam 2 hari lepas — kawasan yang ramai pembeli/penjual pernah berdagang. Disusun paling dekat dahulu.
+        </p>
+      )}
+
       <div className="list">
         {shown.map(({ c, why }) => (
           <div
@@ -174,6 +198,14 @@ export default function Discover({ onOpen }: { onOpen: (ca: string) => void }) {
                 {c.change24h == null ? "—" : `${c.change24h > 0 ? "+" : ""}${c.change24h.toFixed(0)}%`}
               </span>
             </div>
+            {c.narratives.length > 0 && (
+              <div className="tags">
+                {c.narratives.map((t) => (
+                  <span key={t} className="chip">{t}</span>
+                ))}
+              </div>
+            )}
+            {c.zone && <ZoneLine z={c.zone} />}
             {why.length > 0 && <div className="why">{why.join(" · ")}</div>}
             <div className="tags">
               {c.tags.map((t) => (
@@ -183,7 +215,14 @@ export default function Discover({ onOpen }: { onOpen: (ca: string) => void }) {
             </div>
             <div className="coin-actions">
               <CopyButton text={c.ca} />
-              <span className="muted small">Tekan kad untuk chart & holder →</span>
+              <span className="card-links">
+                {c.links.map((l) => (
+                  <a key={l.url} href={l.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} title={l.type}>
+                    {l.type === "twitter" ? "𝕏" : l.type === "telegram" ? "✈️" : "🌐"}
+                  </a>
+                ))}
+              </span>
+              <span className="muted small">Chart →</span>
             </div>
           </div>
         ))}
@@ -194,12 +233,19 @@ export default function Discover({ onOpen }: { onOpen: (ca: string) => void }) {
         )}
       </div>
 
-      {data && (
-        <button className="ghost wide" onClick={() => setShowAll((v) => !v)}>
-          {showAll ? "Tunjuk yang lulus sahaja" : `Tunjuk semua (${rows.length}) termasuk yang gagal`}
-        </button>
-      )}
+
     </section>
+  );
+}
+
+function ZoneLine({ z }: { z: NonNullable<Candidate["zone"]> }) {
+  const where =
+    z.distPct === 0 ? "Harga dalam zon volume" : z.distPct > 0 ? `${z.distPct.toFixed(1)}% atas zon volume` : `${Math.abs(z.distPct).toFixed(1)}% bawah zon volume`;
+  return (
+    <div className={`zoneline ${z.near ? "near" : ""}`}>
+      {z.near ? "🎯 " : ""}
+      {where} <span className="muted">· ${fmtPrice(z.from)}–${fmtPrice(z.to)} ({z.share.toFixed(0)}% vol)</span>
+    </div>
   );
 }
 
