@@ -225,7 +225,7 @@ export default function Wallet({
                     <span className={`side ${s.side === "BUY" ? "buy" : "sell"}`}>{s.side}</span>
                     <b>{t?.symbol ?? short(s.mint)}</b>
                     <span className="small">{sol(s.sol, 3)}</span>
-                    <span className="muted small">{SRC[s.source] ?? s.source}</span>
+                    <span className="muted small">{SRC[s.source] ?? (/^(SYSTEM_PROGRAM|UNKNOWN)$/.test(s.source) ? "Swap" : s.source)}</span>
                     <span className="muted small hist-t">{ago(s.ts)}</span>
                   </a>
                 );
