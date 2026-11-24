@@ -6,7 +6,7 @@ import type { Candidate, DiscoverResult } from "@/lib/discover";
 import { CopyButton } from "./Copy";
 import { fmtPrice } from "./Chart";
 import { DEFAULTS, age, reasons, type Filters } from "@/lib/filters";
-import { api, onKeyChange } from "./key";
+import { api, isActive, onKeyChange } from "./key";
 
 const KEY = "orbit.filters.v1";
 const REFRESH_MS = 60_000;
@@ -50,7 +50,8 @@ export default function Discover({ onOpen, onSubscribe }: { onOpen: (ca: string,
     setLoading(true);
     setError(null);
     try {
-      const res = await api("/api/discover");
+      // CDN Vercel simpan versi percuma — pelanggan guna URL berasingan yang tak disimpan
+      const res = await api(isActive() ? "/api/discover?pro=1" : "/api/discover");
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
       setData(json);

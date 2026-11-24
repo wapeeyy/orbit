@@ -14,6 +14,8 @@ export async function GET(req: Request) {
       // Pelanggan: senarai penuh (jangan simpan di CDN — bergantung pada kod akses)
       return NextResponse.json({ ...data, locked: null }, { headers: { "cache-control": "private, no-store" } });
     }
+    // ?pro=1 tanpa kod sah: bagi versi percuma, tapi jangan simpan di CDN (URL ni untuk pelanggan)
+    const cacheable = !new URL(req.url).searchParams.has("pro");
     // Percuma: 3 coin teratas yang lulus penapis lalai, selebihnya dikunci
     const passed = data.candidates.filter((c) => reasons(c, DEFAULTS).length === 0);
     const free = passed.slice(0, FREE_COINS).map((c) => ({ ...c, free: signFree(c.ca) }));
@@ -24,7 +26,11 @@ export async function GET(req: Request) {
         candidates: free,
         locked: { hidden: Math.max(0, passed.length - free.length), total: data.candidates.length },
       },
-      { headers: { "cache-control": "public, s-maxage=60, stale-while-revalidate=120" } },
+      {
+        headers: {
+          "cache-control": cacheable ? "public, s-maxage=60, stale-while-revalidate=120" : "private, no-store",
+        },
+      },
     );
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });
