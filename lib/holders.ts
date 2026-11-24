@@ -28,7 +28,7 @@ const WARN_THRESHOLD = 30;
 
 function rpcUrl() {
   const key = process.env.HELIUS_API_KEY;
-  if (!key && process.env.SOLANA_RPC_URL) return process.env.SOLANA_RPC_URL;
+  if (process.env.SOLANA_RPC_URL) return process.env.SOLANA_RPC_URL; // pilihan: RPC lain (atau ujian)
   if (!key) throw new Error("HELIUS_API_KEY belum diset");
   return `https://mainnet.helius-rpc.com/?api-key=${key}`;
 }

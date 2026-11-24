@@ -30,7 +30,7 @@ const host = (u: string) => {
   }
 };
 
-export default function About({ ca, free }: { ca: string; free?: string }) {
+export default function About({ ca, free, onInfo }: { ca: string; free?: string; onInfo?: (i: TokenInfo | null) => void }) {
   const [info, setInfo] = useState<TokenInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [more, setMore] = useState(false);
@@ -43,9 +43,16 @@ export default function About({ ca, free }: { ca: string; free?: string }) {
       .then(async (r) => {
         const j = await r.json();
         if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
-        if (!dead) setInfo(j);
+        if (!dead) {
+          setInfo(j);
+          onInfo?.(j);
+        }
       })
-      .catch((e) => !dead && setError(e.message));
+      .catch((e) => {
+        if (dead) return;
+        setError(e.message);
+        onInfo?.(null);
+      });
     return () => {
       dead = true;
     };

@@ -8,10 +8,15 @@ export type DexPair = {
   liquidity?: { usd?: number };
   fdv?: number;
   marketCap?: number;
-  volume?: { h24?: number };
-  priceChange?: { h24?: number };
+  volume?: { h24?: number; h6?: number; h1?: number; m5?: number };
+  priceChange?: { h24?: number; h6?: number; h1?: number; m5?: number };
+  txns?: Record<"m5" | "h1" | "h6" | "h24", { buys: number; sells: number }>;
+  priceNative?: string;
+  pairCreatedAt?: number;
   info?: { imageUrl?: string };
 };
+
+export type Window = "m5" | "h1" | "h6" | "h24";
 
 export type Market = {
   name: string;
@@ -29,6 +34,11 @@ export type Market = {
   pairAddress: string | null;
   pairCount: number;
   pairAddresses: Record<string, string>; // pairAddress -> dexId
+  priceSol: number | null; // harga dalam SOL (untuk demo trade)
+  createdAt: number | null;
+  txns: DexPair["txns"] | null;
+  changes: DexPair["priceChange"] | null;
+  volumes: DexPair["volume"] | null;
 };
 
 export async function getMarket(mint: string): Promise<Market | null> {
@@ -59,6 +69,14 @@ export async function getMarket(mint: string): Promise<Market | null> {
     dexId: main.dexId,
     url: main.url,
     pairAddress: main.pairAddress,
+    priceSol:
+      main.baseToken.address === mint && main.quoteToken.address === "So11111111111111111111111111111111111111112" && main.priceNative
+        ? Number(main.priceNative)
+        : null,
+    createdAt: main.pairCreatedAt ?? null,
+    txns: main.txns ?? null,
+    changes: main.priceChange ?? null,
+    volumes: main.volume ?? null,
     pairCount: pairs.length,
     pairAddresses,
   };

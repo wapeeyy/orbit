@@ -6,6 +6,11 @@ import Chart from "./Chart";
 import About from "./About";
 import { BuyLinks } from "./Copy";
 import Subscribe from "./Subscribe";
+import Report from "./Report";
+import Wallet from "./Wallet";
+import Demo, { DemoTrade } from "./Demo";
+import type { TokenInfo } from "@/lib/info";
+import type { TokenExtra } from "@/lib/report";
 import { api, isActive, onKeyChange, setKey } from "./key";
 import type { Market } from "@/lib/dex";
 import type { HolderReport } from "@/lib/holders";
@@ -32,7 +37,19 @@ const num = (n: number) => new Intl.NumberFormat("en-US", { notation: "compact",
 const short = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
 
 export default function Home() {
-  const [tab, setTab] = useState<"scan" | "discover" | "sub">("discover");
+  const [tab, setTab] = useState<"scan" | "discover" | "wallet" | "demo" | "sub">("discover");
+  const [walletReq, setWalletReq] = useState<{ address: string; n: number } | null>(null);
+  const top = () => window.scrollTo({ top: 0, behavior: "smooth" });
+  const openCa = (ca: string, free?: string) => {
+    setScanCa((p) => ({ ca, free, n: (p?.n ?? 0) + 1 }));
+    setTab("scan");
+    top();
+  };
+  const trace = (address: string) => {
+    setWalletReq((p) => ({ address, n: (p?.n ?? 0) + 1 }));
+    setTab("wallet");
+    top();
+  };
   const [scanCa, setScanCa] = useState<{ ca: string; n: number; free?: string } | null>(null);
   const [pro, setPro] = useState(false);
   useEffect(() => {
@@ -72,29 +89,33 @@ export default function Home() {
       </header>
 
       <nav className="tabs">
-        <button className={tab === "discover" ? "on" : ""} onClick={() => setTab("discover")}>
-          Cari Coin
-        </button>
-        <button className={tab === "scan" ? "on" : ""} onClick={() => setTab("scan")}>
-          Scan CA
-        </button>
-        <button className={tab === "sub" ? "on" : ""} onClick={() => setTab("sub")}>
-          {pro ? "✓ Pro" : "Langgan"}
-        </button>
+        {(
+          [
+            ["discover", "🔭", "Cari"],
+            ["scan", "🔍", "Scan"],
+            ["wallet", "👛", "Wallet"],
+            ["demo", "🎮", "Demo"],
+            ["sub", pro ? "✓" : "⭐", pro ? "Pro" : "Langgan"],
+          ] as const
+        ).map(([id, icon, label]) => (
+          <button key={id} className={tab === id ? "on" : ""} onClick={() => setTab(id)}>
+            <span className="ti">{icon}</span>
+            <span>{label}</span>
+          </button>
+        ))}
       </nav>
 
       <div hidden={tab !== "discover"}>
-        <Discover
-          onSubscribe={goSub}
-          onOpen={(ca, free) => {
-            setScanCa((p) => ({ ca, free, n: (p?.n ?? 0) + 1 }));
-            setTab("scan");
-            window.scrollTo({ top: 0, behavior: "smooth" });
-          }}
-        />
+        <Discover onSubscribe={goSub} onOpen={openCa} />
       </div>
       <div hidden={tab !== "scan"}>
-        <ScanView request={scanCa} onSubscribe={goSub} />
+        <ScanView request={scanCa} onSubscribe={goSub} onTrace={trace} />
+      </div>
+      <div hidden={tab !== "wallet"}>
+        <Wallet request={walletReq} onOpen={(ca) => openCa(ca)} onSubscribe={goSub} />
+      </div>
+      <div hidden={tab !== "demo"}>
+        <Demo onOpen={(ca) => openCa(ca)} />
       </div>
       <div hidden={tab !== "sub"}>
         <Subscribe />
@@ -108,10 +129,14 @@ export default function Home() {
 function ScanView({
   request,
   onSubscribe,
+  onTrace,
 }: {
   request: { ca: string; n: number; free?: string } | null;
   onSubscribe: () => void;
+  onTrace: (address: string) => void;
 }) {
+  const [info, setInfo] = useState<TokenInfo | null | undefined>(undefined);
+  const [extra, setExtra] = useState<TokenExtra | null>(null);
   const [ca, setCa] = useState("");
   const [locked, setLocked] = useState(false);
   const [free, setFree] = useState<string | undefined>();
@@ -137,6 +162,8 @@ function ScanView({
     setError(null);
     setLocked(false);
     setData(null);
+    setInfo(undefined);
+    setExtra(null);
     try {
       const f = override ? freeSig : undefined;
       const res = await api(`/api/token?ca=${encodeURIComponent(q)}${f ? `&free=${f}` : ""}`);
@@ -213,7 +240,19 @@ function ScanView({
             )}
           </section>
 
-          <About key={"about-" + data.ca} ca={data.ca} free={free} />
+          <Report
+            key={"report-" + data.ca}
+            ca={data.ca}
+            market={m ?? null}
+            holders={h ?? null}
+            info={info}
+            free={free}
+            onExtra={setExtra}
+          />
+
+          {m && <DemoTrade key={"demo-" + data.ca} ca={data.ca} symbol={m.symbol} name={m.name} image={m.image} priceSol={m.priceSol} />}
+
+          <About key={"about-" + data.ca} ca={data.ca} free={free} onInfo={setInfo} />
 
           {m?.pairAddress && <Chart key={m.pairAddress} pool={m.pairAddress} token={data.ca} />}
 
@@ -247,6 +286,7 @@ function ScanView({
                   <Badge ok={h.freezeAuthority === null} yes="Freeze authority revoked" no="Freeze authority AKTIF — dev boleh beku wallet" />
                 </div>
 
+                <p className="muted small" style={{ margin: "0 0 8px" }}>Tekan wallet untuk trace: apa dia beli, jual & untung rugi.</p>
                 <table>
                   <thead>
                     <tr>
@@ -261,10 +301,17 @@ function ScanView({
                       <tr key={x.owner} className={x.rank <= 10 ? "top10" : undefined}>
                         <td>{x.rank}</td>
                         <td>
-                          <a href={`https://solscan.io/account/${x.owner}`} target="_blank" rel="noreferrer">
+                          <button type="button" className="linkish" onClick={() => onTrace(x.owner)} title="Trace wallet ni">
                             <span className="full">{x.owner}</span>
                             <span className="short">{short(x.owner)}</span>
-                          </a>
+                          </button>
+                          {(() => {
+                            const a = extra?.holders.find((y) => y.owner === x.owner);
+                            if (info?.dev === x.owner) return <span className="flag dev">DEV</span>;
+                            if (a?.flag === "baru") return <span className="flag">BARU {a.ageDays != null ? `${a.ageDays.toFixed(1)}h` : ""}</span>;
+                            if (a?.flag === "senyap") return <span className="flag">SENYAP {a.txCount}tx</span>;
+                            return null;
+                          })()}
                         </td>
                         <td className="r">{num(x.amount)}</td>
                         <td className="r pct">
