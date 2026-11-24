@@ -6,7 +6,7 @@ import Chart from "./Chart";
 import About from "./About";
 import { BuyLinks } from "./Copy";
 import Subscribe from "./Subscribe";
-import { api, isActive, onKeyChange } from "./key";
+import { api, isActive, onKeyChange, setKey } from "./key";
 import type { Market } from "@/lib/dex";
 import type { HolderReport } from "@/lib/holders";
 
@@ -39,6 +39,22 @@ export default function Home() {
     const sync = () => setPro(isActive());
     sync();
     return onKeyChange(sync);
+  }, []);
+
+  // Link aktivasi: /?kod=KOD_AKSES → simpan kod, buang dari URL, buka tab Langgan
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const kod = url.searchParams.get("kod")?.trim();
+    if (!kod) return;
+    url.searchParams.delete("kod");
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+    fetch("/api/subscribe", { headers: { "x-orbit-key": kod } })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.active) setKey(kod);
+        setTab("sub");
+      })
+      .catch(() => {});
   }, []);
   const goSub = () => {
     setTab("sub");

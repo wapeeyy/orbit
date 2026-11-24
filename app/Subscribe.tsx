@@ -4,7 +4,7 @@ import bs58 from "bs58";
 import QRCode from "qrcode";
 import { useEffect, useMemo, useState } from "react";
 import { CopyButton } from "./Copy";
-import { api, getKey, keyExpiry, setKey } from "./key";
+import { api, getKey, keyExpiry, onKeyChange, setKey } from "./key";
 import { ADMIN_WA_DISPLAY, adminWa } from "./contact";
 
 type Config = {
@@ -26,20 +26,26 @@ export default function Subscribe() {
   const [key, setKeyState] = useState<string | null>(null);
   const [renew, setRenew] = useState(false);
 
-  const load = () =>
-    api("/api/subscribe")
+  const load = () => {
+    const sent = getKey();
+    return api("/api/subscribe")
       .then((r) => r.json())
       .then((j: Config) => {
+        if (getKey() !== sent) return; // kod bertukar semasa menunggu — semakan baru akan menyusul
         setCfg(j);
-        const k = getKey();
         // Kod tamat atau tandatangan tak sah → buang dari browser
-        if (k && !j.active) setKey(null);
-        setKeyState(j.active ? k : null);
+        if (sent && !j.active) setKey(null);
+        setKeyState(j.active ? sent : null);
       })
       .catch((e) => setError(e.message));
+  };
 
   useEffect(() => {
     load();
+    return onKeyChange(() => {
+      load();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const exp = keyExpiry(key);
@@ -84,12 +90,13 @@ export default function Subscribe() {
           <code className="keybox">{key}</code>
           <div className="buy" style={{ marginTop: 8 }}>
             <CopyButton text={key} label="Copy kod akses" className="primary" />
+            <CopyButton text={`${location.origin}/?kod=${encodeURIComponent(key)}`} label="Copy link aktivasi" />
             <button className="ghost" onClick={() => setRenew((v) => !v)}>
               {renew ? "Tutup" : "Sambung tempoh"}
             </button>
           </div>
           <p className="muted small">
-            Simpan kod ni (contoh dalam Notes). Guna untuk buka ORBIT di phone lain atau kalau data browser terpadam.
+            Simpan kod ni (contoh dalam Notes). Di phone lain: buka <b>link aktivasi</b> sekali, terus jadi Pro.
           </p>
         </div>
       )}
