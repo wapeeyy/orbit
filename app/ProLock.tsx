@@ -18,7 +18,7 @@ export function usePro() {
 export default function ProLock({ title, text, onSubscribe }: { title: string; text: string; onSubscribe: () => void }) {
   return (
     <div className="card locked-cta">
-      <b>🔒 {title}</b>
+      <b>{title}</b>
       <span className="muted small">{text}</span>
       <button className="copy primary" onClick={onSubscribe}>
         Get ORBIT Pro — {PRICE_LABEL}

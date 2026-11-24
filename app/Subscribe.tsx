@@ -67,12 +67,12 @@ export default function Subscribe() {
         </div>
         <ul className="perks">
           <li>Every coin that passes the filters (not just 3)</li>
-          <li>🎯 Near volume zone list</li>
+          <li>Near volume zone list</li>
           <li>Scan any CA: holders, chart, narrative, owner's latest posts</li>
           <li>Filters you can tune to your trading style</li>
-          <li>📋 ORBIT Report: safety score, dev & insider wallets</li>
-          <li>👛 Wallet tracing: buys/sells, PnL, win rate</li>
-          <li>🎮 Demo trading with 10 fake SOL</li>
+          <li>ORBIT Report: safety score, dev & insider wallets</li>
+          <li>Wallet tracing: buys/sells, PnL, win rate</li>
+          <li>Demo trading with 10 fake SOL</li>
         </ul>
         <p className="muted small">Pay with USDC or SOL (Solana). Access turns on automatically once the payment is confirmed.</p>
       </div>
@@ -116,10 +116,10 @@ export default function Subscribe() {
       {!active && <RestoreKey onDone={load} />}
 
       <a className="buy-link guide-link" href="/orbit-guide.pdf" target="_blank" rel="noreferrer">
-        📄 Guide: subscribe, pay &amp; install the app (PDF)
+        Guide: subscribe, pay &amp; install the app (PDF) ↗
       </a>
       <a className="buy-link guide-link" href={adminWa()} target="_blank" rel="noreferrer">
-        💬 Questions or payment issues? WhatsApp admin · {ADMIN_WA_DISPLAY}
+        Questions or payment issues? WhatsApp admin · {ADMIN_WA_DISPLAY}
       </a>
 
       <p className="muted small disclaimer">
@@ -303,7 +303,7 @@ function PayBox({ cfg, onPaid }: { cfg: Config; onPaid: (key: string) => void })
           rel="noreferrer"
           style={{ marginBottom: 12 }}
         >
-          💬 WhatsApp admin ({ADMIN_WA_DISPLAY})
+          WhatsApp admin ({ADMIN_WA_DISPLAY})
         </a>
       )}
       <p className="muted small">Pay more = longer access (e.g. 2× the price = 60 days, up to 12 months).</p>

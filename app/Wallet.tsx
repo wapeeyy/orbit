@@ -73,7 +73,7 @@ export default function Wallet({
 
   const report = d
     ? [
-        `🪐 ORBIT wallet trace — ${d.address}`,
+        `ORBIT wallet trace — ${d.address}`,
         d.labels.length ? `Labels: ${d.labels.join(" · ")}` : "",
         `Value: ${usd(d.totalUsd)} (${sol(d.solBalance)} + ${d.holdings.length} tokens)`,
         st ? `${st.trades} swaps · ${st.tokensTraded} tokens · ${st.tradesPerDay ? st.tradesPerDay.toFixed(1) : "—"} swaps/day` : "",
@@ -106,7 +106,7 @@ export default function Wallet({
       {error && <div className="alert danger">{error}</div>}
       {(locked || !pro) && (
         <div className="card locked-cta">
-          <b>🔒 Wallet tracing is for ORBIT Pro subscribers</b>
+          <b>Wallet tracing is for ORBIT Pro subscribers</b>
           <span className="muted small">See which coins a wallet buys & sells, its PnL, win rate and current holdings.</span>
           <button className="copy primary" onClick={onSubscribe}>Get ORBIT Pro — {PRICE_LABEL}</button>
         </div>
@@ -150,20 +150,20 @@ export default function Wallet({
               Based on {st.trades} swaps {st.complete ? "(full history)" : "(most recent)"}
               {st.periodDays ? ` over ${st.periodDays < 1 ? `${Math.round(st.periodDays * 24)} hours` : `${st.periodDays.toFixed(0)} days`}` : ""}.
             </p>
-            <CopyButton text={report} label="📋 Copy wallet report" className="primary" />
+            <CopyButton text={report} label="Copy wallet report" className="primary" />
           </div>
 
           {(mostSold.length > 0 || best.length > 0 || worst.length > 0) && (
             <div className="card">
               <div className="rank-grid">
                 {mostSold.length > 0 && (
-                  <Rank title="💸 Most sold" rows={mostSold.map((t) => ({ mint: t.mint, sym: t.symbol, val: sol(t.soldSol) }))} onOpen={onOpen} />
+                  <Rank title="Most sold" rows={mostSold.map((t) => ({ mint: t.mint, sym: t.symbol, val: sol(t.soldSol) }))} onOpen={onOpen} />
                 )}
                 {best.length > 0 && (
-                  <Rank title="🔥 Best trades" rows={best.map((t) => ({ mint: t.mint, sym: t.symbol, val: signed(t.realizedSol!), up: true }))} onOpen={onOpen} />
+                  <Rank title="Best trades" rows={best.map((t) => ({ mint: t.mint, sym: t.symbol, val: signed(t.realizedSol!), up: true }))} onOpen={onOpen} />
                 )}
                 {worst.length > 0 && (
-                  <Rank title="📉 Worst trades" rows={worst.map((t) => ({ mint: t.mint, sym: t.symbol, val: signed(t.realizedSol!), up: false }))} onOpen={onOpen} />
+                  <Rank title="Worst trades" rows={worst.map((t) => ({ mint: t.mint, sym: t.symbol, val: signed(t.realizedSol!), up: false }))} onOpen={onOpen} />
                 )}
               </div>
             </div>
@@ -191,7 +191,7 @@ export default function Wallet({
                       <td className={`r ${t.realizedSol == null ? "muted" : t.realizedSol >= 0 ? "up-t" : "down-t"}`}>
                         {t.realizedSol == null ? (t.sells ? "?" : "—") : signed(t.realizedSol)}
                       </td>
-                      <td className="small">{t.status === "pegang" ? "🟢 Holding" : t.status === "separuh" ? "🟠 Partial" : "⚪ Exited"}</td>
+                      <td className="small"><span className={`sdot ${t.status}`} aria-hidden="true" />{t.status === "pegang" ? "Holding" : t.status === "separuh" ? "Partial" : "Exited"}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -14,7 +14,7 @@ type Finding = { level: Level; text: string };
 const usd = (n: number | null | undefined) =>
   n == null ? "—" : "$" + new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 const pct = (n: number | undefined | null) => (n == null ? "—" : `${n > 0 ? "+" : ""}${n.toFixed(Math.abs(n) >= 100 ? 0 : 1)}%`);
-const ICON: Record<Level, string> = { ok: "✅", warn: "⚠️", bad: "🚩", info: "ℹ️" };
+const ICON: Record<Level, string> = { ok: "✓", warn: "!", bad: "✕", info: "·" };
 const ORDER: Level[] = ["bad", "warn", "info", "ok"];
 
 function analyse(m: Market | null, h: HolderReport | null, info: TokenInfo | null | undefined, x: TokenExtra | null) {
@@ -119,7 +119,7 @@ export default function Report({
   const m = market;
 
   const text = [
-    `🪐 ORBIT Report — ${m?.name ?? ""} ($${m?.symbol ?? ""})`,
+    `ORBIT Report — ${m?.name ?? ""} ($${m?.symbol ?? ""})`,
     `CA: ${ca}`,
     `Safety score: ${a.score}/100 (${a.grade.text})`,
     m ? `Price ${m.priceUsd ?? "—"} · MC ${usd(m.marketCap)} · Liq ${usd(m.liquidityUsd)} · Vol 24h ${usd(m.volume24h)}` : "",
@@ -170,7 +170,7 @@ export default function Report({
       <ul className="findings">
         {a.findings.map((x, i) => (
           <li key={i} className={x.level}>
-            <span>{ICON[x.level]}</span>
+            <span className={`fmark ${x.level}`} aria-hidden="true" />
             {x.text}
           </li>
         ))}
@@ -183,7 +183,7 @@ export default function Report({
       )}
 
       <div className="buy">
-        <CopyButton text={text} label="📋 Copy report" className="primary" />
+        <CopyButton text={text} label="Copy report" className="primary" />
       </div>
       <p className="muted small" style={{ marginTop: 8 }}>The score is an automatic estimate — not a guarantee the coin is safe.</p>
     </section>

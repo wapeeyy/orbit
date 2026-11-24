@@ -182,7 +182,7 @@ export default function Discover({ onOpen, onSubscribe }: { onOpen: (ca: string,
             ✓ Passed ({passed.length})
           </button>
           <button className={view === "zone" ? "on" : ""} onClick={() => setView("zone")}>
-            🎯 Near volume zone ({nearZone.length})
+            Near volume zone ({nearZone.length})
           </button>
           <button className={view === "all" ? "on" : ""} onClick={() => setView("all")}>
             All ({rows.length})
@@ -253,7 +253,7 @@ export default function Discover({ onOpen, onSubscribe }: { onOpen: (ca: string,
               <span className="card-links">
                 {c.links.map((l) => (
                   <a key={l.url} href={l.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} title={l.type}>
-                    {l.type === "twitter" ? "𝕏" : l.type === "telegram" ? "✈️" : "🌐"}
+                    {l.type === "twitter" ? "X" : l.type === "telegram" ? "TG" : "WEB"}
                   </a>
                 ))}
               </span>
@@ -272,9 +272,9 @@ export default function Discover({ onOpen, onSubscribe }: { onOpen: (ca: string,
               ))}
             </div>
             <div className="locked-cta">
-              <b>🔒 {data.locked.hidden} more coins passed the filters</b>
+              <b>{data.locked.hidden} more coins passed the filters</b>
               <span className="muted small">
-                The free version shows the top 3 coins. Subscribe for the full list, 🎯 Near volume zone, custom filters and scanning any CA.
+                The free version shows the top 3 coins. Subscribe for the full list, Near volume zone, custom filters and scanning any CA.
               </span>
               <button className="copy primary" onClick={onSubscribe}>Subscribe — {PRICE_LABEL}</button>
             </div>
@@ -297,7 +297,7 @@ function ZoneLine({ z }: { z: NonNullable<Candidate["zone"]> }) {
     z.distPct === 0 ? "Price inside volume zone" : z.distPct > 0 ? `${z.distPct.toFixed(1)}% above volume zone` : `${Math.abs(z.distPct).toFixed(1)}% below volume zone`;
   return (
     <div className={`zoneline ${z.near ? "near" : ""}`}>
-      {z.near ? "🎯 " : ""}
+      {z.near ? "● " : ""}
       {where} <span className="muted">· ${fmtPrice(z.from)}–${fmtPrice(z.to)} ({z.share.toFixed(0)}% vol)</span>
     </div>
   );

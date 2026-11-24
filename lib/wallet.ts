@@ -282,14 +282,14 @@ export async function traceWallet(address: string): Promise<WalletReport> {
   const winRate = wins + losses ? (wins / (wins + losses)) * 100 : null;
 
   const labels: string[] = [];
-  if (totalUsd >= 100_000) labels.push("🐋 Whale");
-  if (tradesPerDay != null && tradesPerDay > 150) labels.push("🤖 Bot / very fast");
-  if (realized >= 10 && (winRate ?? 0) >= 55) labels.push("🔥 Profitable trader");
-  if (realized <= -10) labels.push("📉 Heavy losses");
-  if (complete && first && Date.now() - first < 3 * 86_400_000) labels.push("🆕 New wallet");
-  if (avgHold != null && avgHold < 30) labels.push("⚡ Scalper (holds < 30 min)");
-  if (avgHold != null && avgHold > 24 * 60) labels.push("💎 Long holder");
-  if (swaps.length === 0) labels.push("😴 No swaps");
+  if (totalUsd >= 100_000) labels.push("Whale");
+  if (tradesPerDay != null && tradesPerDay > 150) labels.push("Bot / very fast");
+  if (realized >= 10 && (winRate ?? 0) >= 55) labels.push("Profitable trader");
+  if (realized <= -10) labels.push("Heavy losses");
+  if (complete && first && Date.now() - first < 3 * 86_400_000) labels.push("New wallet");
+  if (avgHold != null && avgHold < 30) labels.push("Scalper (holds < 30 min)");
+  if (avgHold != null && avgHold > 24 * 60) labels.push("Long holder");
+  if (swaps.length === 0) labels.push("No swaps");
 
   const v: WalletReport = {
     address,

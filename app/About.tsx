@@ -88,20 +88,20 @@ export default function About({ ca, free, onInfo }: { ca: string; free?: string;
 
           <div className="links">
             {info.websites.map((u) => (
-              <a key={u} href={u} target="_blank" rel="noreferrer" className="buy-link">🌐 {host(u)}</a>
+              <a key={u} href={u} target="_blank" rel="noreferrer" className="buy-link">{host(u)} ↗</a>
             ))}
             {info.twitter && (
               <a href={info.twitter} target="_blank" rel="noreferrer" className="buy-link">𝕏 X</a>
             )}
             {info.telegram && (
-              <a href={info.telegram} target="_blank" rel="noreferrer" className="buy-link">✈️ Telegram</a>
+              <a href={info.telegram} target="_blank" rel="noreferrer" className="buy-link">Telegram ↗</a>
             )}
             {info.others.map((o) => (
               <a key={o.url} href={o.url} target="_blank" rel="noreferrer" className="buy-link">{o.label}</a>
             ))}
             {!info.websites.length && !info.twitter && !info.telegram && !info.others.length && (
               <span className="alert danger small" style={{ margin: 0 }}>
-                ⚠️ No website, X or Telegram — a red flag for a new coin
+                No website, X or Telegram — a red flag for a new coin
               </span>
             )}
           </div>
@@ -138,7 +138,7 @@ function ActivityRow({ a }: { a: Activity }) {
   return (
     <a className="act" href={a.url} target="_blank" rel="noreferrer">
       <div className="act-head">
-        <b>{a.platform === "x" ? "𝕏" : "✈️"} {a.platform === "x" ? "@" : ""}{a.handle}</b>
+        <b>{a.platform === "x" ? "X · @" : "Telegram · "}{a.handle}</b>
         {a.lastPostAt ? (
           <span className={`pill ${f.cls}`}>
             {f.label} · {ago(a.lastPostAt)}

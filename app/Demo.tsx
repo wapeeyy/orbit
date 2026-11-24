@@ -71,7 +71,7 @@ export default function Demo({ onOpen }: { onOpen: (ca: string) => void }) {
       <div className="card plan">
         <div className="plan-head">
           <div>
-            <span className="label">🎮 Demo trading · fake SOL</span>
+            <span className="label">Demo trading · fake SOL</span>
             <div className="price">{sol(total, 3)}</div>
             <span className={pnl >= 0 ? "up-t" : "down-t"}>
               {pnl >= 0 ? "▲" : "▼"} {sol(Math.abs(pnl))} ({pct((pnl / s.start) * 100)}) vs {s.start} SOL start
@@ -101,7 +101,7 @@ export default function Demo({ onOpen }: { onOpen: (ca: string) => void }) {
             </button>
           ))}
         </div>
-        <p className="muted small" style={{ marginTop: 8 }}>Or tap <b>🎮 Demo buy</b> in any coin report.</p>
+        <p className="muted small" style={{ marginTop: 8 }}>Or tap <b>Demo buy</b> in any coin report.</p>
         {msg && <div className={`alert ${msg.ok ? "ok" : "danger"}`}>{msg.text}</div>}
       </div>
 
@@ -217,7 +217,7 @@ export function DemoTrade({ ca, symbol, name, image, priceSol }: { ca: string; s
   return (
     <section className="card demo-box">
       <div className="section-head">
-        <h3>🎮 Demo buy</h3>
+        <h3>Demo buy</h3>
         <span className="muted small">Balance {s.sol.toFixed(3)} fake SOL</span>
       </div>
       <div className="chips">

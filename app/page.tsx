@@ -10,6 +10,7 @@ import Report from "./Report";
 import Wallet from "./Wallet";
 import Demo, { DemoTrade } from "./Demo";
 import ProLock, { usePro } from "./ProLock";
+import { Galaxy, Icon } from "./Cosmos";
 import type { TokenInfo } from "@/lib/info";
 import type { TokenExtra } from "@/lib/report";
 import { api, isActive, onKeyChange, setKey } from "./key";
@@ -83,25 +84,24 @@ export default function Home() {
   return (
     <main>
       <header className="brand">
-        <div className="logo" aria-hidden>
-          <span />
-        </div>
-        <h1>ORBIT</h1>
-        <p>Find Solana coins worth a look, or paste a CA to check price, liquidity & who holds the supply.</p>
+        <Galaxy size={230} className="brand-mark" />
+        <h1>Orbit</h1>
+        <p className="eyebrow">Solana coin intelligence</p>
+        <p className="brand-sub">Find Solana coins worth a look, or paste a CA to check price, liquidity & who holds the supply.</p>
       </header>
 
       <nav className="tabs">
         {(
           [
-            ["discover", "🔭", "Discover"],
-            ["scan", "🔍", "Scan"],
-            ["wallet", "👛", "Wallet"],
-            ["demo", "🎮", "Demo"],
-            ["sub", pro ? "✓" : "⭐", pro ? "Pro" : "Subscribe"],
+            ["discover", "discover", "Discover"],
+            ["scan", "scan", "Scan"],
+            ["wallet", "wallet", "Wallet"],
+            ["demo", "demo", "Demo"],
+            ["sub", "pro", pro ? "Pro" : "Subscribe"],
           ] as const
         ).map(([id, icon, label]) => (
-          <button key={id} className={tab === id ? "on" : ""} onClick={() => setTab(id)}>
-            <span className="ti">{icon}</span>
+          <button key={id} className={`${tab === id ? "on" : ""} ${id === "sub" && pro ? "is-pro" : ""}`} onClick={() => setTab(id)}>
+            <Icon name={icon} />
             <span>{label}</span>
           </button>
         ))}
@@ -212,7 +212,7 @@ function ScanView({
       {error && <div className="alert danger">{error}</div>}
       {locked && (
         <div className="card locked-cta">
-          <b>🔒 Scanning any CA is for ORBIT Pro subscribers</b>
+          <b>Scanning any CA is for ORBIT Pro subscribers</b>
           <span className="muted small">
             The free version opens the top 3 coins in Discover. Subscribe to scan any CA: holders, chart,
             narrative and the owner's latest posts.
@@ -293,7 +293,7 @@ function ScanView({
                 <div className={`alert ${h.warning ? "danger" : "ok"}`}>
                   <strong>Top 10 hold {h.top10Pct.toFixed(2)}% of supply</strong>
                   {h.warning
-                    ? " — ⚠️ Over 30%. Supply is concentrated, high dump risk."
+                    ? " — over 30%. Supply is concentrated, high dump risk."
                     : " — under the 30% limit, distribution looks OK."}
                   <div className="meter">
                     <div style={{ width: `${Math.min(h.top10Pct, 100)}%` }} />

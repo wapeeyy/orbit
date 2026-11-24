@@ -56,16 +56,16 @@ export async function fetchCandles(pool: string, token: string, frame: string, a
 
 // ---- Naratif: teka tema coin dari nama, simbol & penerangan ----
 const NARRATIVES: { tag: string; kw: string[] }[] = [
-  { tag: "🤖 AI", kw: ["ai", "agent", "gpt", "nvidia", "neural", "robot", "bot", "llm", "openai", "grok", "claude", "agi", "jensen"] },
-  { tag: "🏛 Politics", kw: ["trump", "maga", "biden", "president", "election", "kamala", "putin", "vote", "senate", "congress"] },
-  { tag: "⭐ Celebrity", kw: ["elon", "musk", "kanye", "drake", "celebrity", "saylor", "vitalik", "cz", "toly", "influencer"] },
-  { tag: "🐸 Classic meme", kw: ["pepe", "wojak", "chad", "gigachad", "doge", "bonk", "wif", "copium", "cope", "kek", "apu"] },
-  { tag: "🐶 Animal", kw: ["dog", "inu", "shib", "cat", "kitty", "meow", "frog", "hamster", "monkey", "ape", "penguin", "fish", "bird", "duck", "bear", "bull", "goat", "pig", "cow", "rat", "mouse", "fox", "wolf", "tiger", "lion", "panda", "otter", "seal", "hippo"] },
-  { tag: "🎄 Seasonal", kw: ["xmas", "christmas", "santa", "halloween", "thanksgiving", "new year", "easter", "valentine", "snow", "elf"] },
-  { tag: "💬 Internet culture", kw: ["tiktok", "viral", "trend", "brainrot", "skibidi", "rizz", "sigma", "mog", "looksmax", "wasted", "bruh", "npc", "ratio", "stank", "fart"] },
-  { tag: "💰 Finance", kw: ["cash", "money", "usd", "dollar", "bank", "defi", "yield", "stable", "pay", "wsb", "wallstreet", "stock", "millionaire", "gold"] },
-  { tag: "🎮 Gaming", kw: ["game", "gaming", "pixel", "arcade", "quest", "rpg"] },
-  { tag: "🚀 Space", kw: ["rocket", "mars", "spacex", "outer space", "nasa", "galaxy", "astro", "alien"] },
+  { tag: "AI", kw: ["ai", "agent", "gpt", "nvidia", "neural", "robot", "bot", "llm", "openai", "grok", "claude", "agi", "jensen"] },
+  { tag: "Politics", kw: ["trump", "maga", "biden", "president", "election", "kamala", "putin", "vote", "senate", "congress"] },
+  { tag: "Celebrity", kw: ["elon", "musk", "kanye", "drake", "celebrity", "saylor", "vitalik", "cz", "toly", "influencer"] },
+  { tag: "Classic meme", kw: ["pepe", "wojak", "chad", "gigachad", "doge", "bonk", "wif", "copium", "cope", "kek", "apu"] },
+  { tag: "Animal", kw: ["dog", "inu", "shib", "cat", "kitty", "meow", "frog", "hamster", "monkey", "ape", "penguin", "fish", "bird", "duck", "bear", "bull", "goat", "pig", "cow", "rat", "mouse", "fox", "wolf", "tiger", "lion", "panda", "otter", "seal", "hippo"] },
+  { tag: "Seasonal", kw: ["xmas", "christmas", "santa", "halloween", "thanksgiving", "new year", "easter", "valentine", "snow", "elf"] },
+  { tag: "Internet culture", kw: ["tiktok", "viral", "trend", "brainrot", "skibidi", "rizz", "sigma", "mog", "looksmax", "wasted", "bruh", "npc", "ratio", "stank", "fart"] },
+  { tag: "Finance", kw: ["cash", "money", "usd", "dollar", "bank", "defi", "yield", "stable", "pay", "wsb", "wallstreet", "stock", "millionaire", "gold"] },
+  { tag: "Gaming", kw: ["game", "gaming", "pixel", "arcade", "quest", "rpg"] },
+  { tag: "Space", kw: ["rocket", "mars", "spacex", "outer space", "nasa", "galaxy", "astro", "alien"] },
 ];
 
 export function narratives(...texts: (string | undefined | null)[]): string[] {
