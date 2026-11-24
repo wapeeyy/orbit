@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 const secret = () => {
   const s = process.env.ORBIT_SECRET || process.env.HELIUS_API_KEY;
@@ -21,8 +21,23 @@ export function signKey(p: KeyPayload) {
   return `${body}.${mac("key:" + body)}`;
 }
 
+// Kod percuma seumur hidup (owner & member). Hanya hash disimpan di sini — kod sebenar dipegang pemilik.
+// Untuk batalkan satu kod: buang hash dia dari senarai ni.
+const COMP_HASHES = new Set([
+  "6e2fbbbaafd5b91ad7293028ad2047da92be651146a995b883a9b83355795cec", // owner
+  "25e00ea4fc1fc87cd065b3c6414788d318e5605504af49047f7ded46349561c7", // member1
+]);
+
 export function verifyKey(key: string | null | undefined): KeyPayload | null {
   if (!key) return null;
+  const k = key.trim();
+  if (COMP_HASHES.has(createHash("sha256").update(k).digest("hex"))) {
+    try {
+      return JSON.parse(Buffer.from(k.split(".")[0], "base64url").toString()) as KeyPayload;
+    } catch {
+      return null;
+    }
+  }
   const [body, sig] = key.trim().split(".");
   if (!body || !sig) return null;
   try {

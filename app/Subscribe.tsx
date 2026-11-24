@@ -72,7 +72,13 @@ export default function Subscribe() {
       {active && key && (
         <div className="card">
           <div className="alert ok" style={{ marginBottom: 12 }}>
-            <strong>Langganan aktif sampai {date(exp!)}</strong> ({Math.ceil((exp! - Date.now()) / 86_400_000)} hari lagi)
+            {exp! > Date.UTC(2090, 0, 1) ? (
+              <strong>Akses Pro seumur hidup (percuma)</strong>
+            ) : (
+              <>
+                <strong>Langganan aktif sampai {date(exp!)}</strong> ({Math.ceil((exp! - Date.now()) / 86_400_000)} hari lagi)
+              </>
+            )}
           </div>
           <span className="label">Kod akses kau</span>
           <code className="keybox">{key}</code>
