@@ -9,9 +9,11 @@
   },
   "dependencies": {
     "@noble/curves": "1.9.7",
+    "@types/qrcode": "1.5.5",
     "bs58": "6.0.0",
     "lightweight-charts": "5.2.1",
     "next": "16.4.6",
+    "qrcode": "1.5.4",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },

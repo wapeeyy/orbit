@@ -5,6 +5,8 @@ import Discover from "./Discover";
 import Chart from "./Chart";
 import About from "./About";
 import { BuyLinks } from "./Copy";
+import Subscribe from "./Subscribe";
+import { api, isActive, onKeyChange } from "./key";
 import type { Market } from "@/lib/dex";
 import type { HolderReport } from "@/lib/holders";
 
@@ -30,8 +32,18 @@ const num = (n: number) => new Intl.NumberFormat("en-US", { notation: "compact",
 const short = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
 
 export default function Home() {
-  const [tab, setTab] = useState<"scan" | "discover">("discover");
-  const [scanCa, setScanCa] = useState<{ ca: string; n: number } | null>(null);
+  const [tab, setTab] = useState<"scan" | "discover" | "sub">("discover");
+  const [scanCa, setScanCa] = useState<{ ca: string; n: number; free?: string } | null>(null);
+  const [pro, setPro] = useState(false);
+  useEffect(() => {
+    const sync = () => setPro(isActive());
+    sync();
+    return onKeyChange(sync);
+  }, []);
+  const goSub = () => {
+    setTab("sub");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   return (
     <main>
@@ -50,19 +62,26 @@ export default function Home() {
         <button className={tab === "scan" ? "on" : ""} onClick={() => setTab("scan")}>
           Scan CA
         </button>
+        <button className={tab === "sub" ? "on" : ""} onClick={() => setTab("sub")}>
+          {pro ? "✓ Pro" : "Langgan"}
+        </button>
       </nav>
 
       <div hidden={tab !== "discover"}>
         <Discover
-          onOpen={(ca) => {
-            setScanCa((p) => ({ ca, n: (p?.n ?? 0) + 1 }));
+          onSubscribe={goSub}
+          onOpen={(ca, free) => {
+            setScanCa((p) => ({ ca, free, n: (p?.n ?? 0) + 1 }));
             setTab("scan");
             window.scrollTo({ top: 0, behavior: "smooth" });
           }}
         />
       </div>
       <div hidden={tab !== "scan"}>
-        <ScanView request={scanCa} />
+        <ScanView request={scanCa} onSubscribe={goSub} />
+      </div>
+      <div hidden={tab !== "sub"}>
+        <Subscribe />
       </div>
 
       <footer className="muted small">Data: DexScreener · Helius RPC. Bukan nasihat kewangan — DYOR.</footer>
@@ -70,8 +89,16 @@ export default function Home() {
   );
 }
 
-function ScanView({ request }: { request: { ca: string; n: number } | null }) {
+function ScanView({
+  request,
+  onSubscribe,
+}: {
+  request: { ca: string; n: number; free?: string } | null;
+  onSubscribe: () => void;
+}) {
   const [ca, setCa] = useState("");
+  const [locked, setLocked] = useState(false);
+  const [free, setFree] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<Result | null>(null);
@@ -79,21 +106,29 @@ function ScanView({ request }: { request: { ca: string; n: number } | null }) {
   useEffect(() => {
     if (request) {
       setCa(request.ca);
-      scan(undefined, request.ca);
+      setFree(request.free);
+      scan(undefined, request.ca, request.free);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [request]);
 
-  async function scan(e?: React.FormEvent, override?: string) {
+  async function scan(e?: React.FormEvent, override?: string, freeSig?: string) {
     e?.preventDefault();
     const q = (override ?? ca).trim();
     if (!q) return;
+    if (!override) setFree(undefined); // scan manual: tiket percuma tak berkenaan
     setLoading(true);
     setError(null);
+    setLocked(false);
     setData(null);
     try {
-      const res = await fetch(`/api/token?ca=${encodeURIComponent(q)}`);
+      const f = override ? freeSig : undefined;
+      const res = await api(`/api/token?ca=${encodeURIComponent(q)}${f ? `&free=${f}` : ""}`);
       const json = await res.json();
+      if (res.status === 402) {
+        setLocked(true);
+        return;
+      }
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
       setData(json);
     } catch (err) {
@@ -121,6 +156,16 @@ function ScanView({ request }: { request: { ca: string; n: number } | null }) {
       </form>
 
       {error && <div className="alert danger">{error}</div>}
+      {locked && (
+        <div className="card locked-cta">
+          <b>🔒 Scan CA untuk pelanggan ORBIT Pro</b>
+          <span className="muted small">
+            Versi percuma boleh buka 3 coin teratas dalam Cari Coin. Langgan untuk scan mana-mana CA: holder, chart,
+            naratif dan post terakhir owner.
+          </span>
+          <button className="copy primary" onClick={onSubscribe}>Langgan RM100 / bulan</button>
+        </div>
+      )}
 
       {data && (
         <>
@@ -152,7 +197,7 @@ function ScanView({ request }: { request: { ca: string; n: number } | null }) {
             )}
           </section>
 
-          <About key={"about-" + data.ca} ca={data.ca} />
+          <About key={"about-" + data.ca} ca={data.ca} free={free} />
 
           {m?.pairAddress && <Chart key={m.pairAddress} pool={m.pairAddress} token={data.ca} />}
 

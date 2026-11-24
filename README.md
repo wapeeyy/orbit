@@ -33,3 +33,26 @@ Kunci Helius hanya digunakan di server (`app/api/token/route.ts`) — tak pernah
 ## Had
 
 `getTokenLargestAccounts` pulangkan maksimum 20 akaun, jadi selepas pool ditapis senarai wallet mungkin < 20.
+
+## Langganan ORBIT Pro (RM100 / 30 hari)
+
+- Tanpa langganan: 3 coin teratas dalam Cari Coin (dan laporan penuh untuk 3 coin tu sahaja).
+- Bayar USDC atau SOL ke `PAY_WALLET`. Dua cara:
+  1. **Solana Pay** (QR / butang wallet) — ada `reference` unik; app semak sendiri setiap 6 s dan aktifkan automatik.
+  2. **Exchange / wallet lain** — pelanggan paste Transaction ID, server semak di blockchain.
+- Server sahkan: transaksi berjaya, ≤ 72 jam, wallet penerima dapat ≥ 97% harga (USDC, atau SOL × harga Jupiter).
+  Bayar 2× = 60 hari (maks 12 bulan). Setiap transaksi hanya boleh dituntut sekali (Upstash Redis).
+- Kod akses = payload bertandatangan HMAC (tiada akaun/kata laluan). Pelanggan simpan kod untuk guna di peranti lain.
+
+### Setup di Vercel (sekali sahaja)
+
+1. **Storage → Create Database → Upstash (Redis)** → sambung ke projek `orbit`. Ini isi `KV_REST_API_URL` & `KV_REST_API_TOKEN`.
+2. **Settings → Environment Variables**: `PAY_WALLET` (alamat Solana kau), pilihan `PRICE_USDC`, `ORBIT_SECRET`.
+3. Redeploy.
+
+Kalau `ORBIT_SECRET` tak diset, `HELIUS_API_KEY` digunakan — tukar kunci Helius = semua kod akses lama jadi tak sah.
+
+## App phone (PWA)
+
+`app/manifest.ts`, `public/sw.js`, ikon dalam `public/`. iPhone: Safari → Share → Add to Home Screen.
+Android: Chrome → Install app. Panduan pelanggan: `public/panduan-orbit.pdf`.

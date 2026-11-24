@@ -5,26 +5,9 @@ import { fetchCandles, volumeZone, type VolumeZone } from "@/lib/analysis";
 import type { Candidate, DiscoverResult } from "@/lib/discover";
 import { CopyButton } from "./Copy";
 import { fmtPrice } from "./Chart";
+import { DEFAULTS, age, reasons, type Filters } from "@/lib/filters";
+import { api, onKeyChange } from "./key";
 
-type Filters = {
-  minLiq: number;
-  minMc: number;
-  minVol: number;
-  minAgeH: number;
-  maxTop10: number;
-  maxTop1: number;
-  needRevoked: boolean;
-};
-
-const DEFAULTS: Filters = {
-  minLiq: 10_000,
-  minMc: 20_000,
-  minVol: 10_000,
-  minAgeH: 1,
-  maxTop10: 30,
-  maxTop1: 5,
-  needRevoked: true,
-};
 const KEY = "orbit.filters.v1";
 const REFRESH_MS = 60_000;
 const ZKEY = "orbit.zones.v1";
@@ -32,28 +15,12 @@ const ZONE_TTL = 10 * 60_000;
 
 const usd = (n: number | null) =>
   n == null ? "—" : "$" + new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n);
-const age = (h: number | null) =>
-  h == null ? "—" : h < 1 ? `${Math.round(h * 60)}m` : h < 48 ? `${Math.round(h)}j` : `${Math.round(h / 24)}h`;
 
-function reasons(c: Candidate, f: Filters): string[] {
-  const r: string[] = [];
-  if (c.liquidityUsd < f.minLiq) r.push(`Liquidity ${usd(c.liquidityUsd)}`);
-  if ((c.marketCap ?? 0) < f.minMc) r.push(`MC ${usd(c.marketCap)}`);
-  if (c.volume24h < f.minVol) r.push(`Volume ${usd(c.volume24h)}`);
-  if (c.ageHours != null && c.ageHours < f.minAgeH) r.push(`Baru ${age(c.ageHours)}`);
-  if (!c.holders) {
-    r.push(c.holdersError ? "Holder gagal disemak" : "Holder tak disemak");
-    return r;
-  }
-  if (c.holders.top10Pct > f.maxTop10) r.push(`Top 10 ${c.holders.top10Pct.toFixed(1)}%`);
-  if (c.holders.top1Pct > f.maxTop1) r.push(`Whale ${c.holders.top1Pct.toFixed(1)}%`);
-  if (f.needRevoked && !c.holders.mintRevoked) r.push("Mint aktif");
-  if (f.needRevoked && !c.holders.freezeRevoked) r.push("Freeze aktif");
-  return r;
-}
+type Row = Candidate & { free?: string };
+type Data = DiscoverResult & { candidates: Row[]; locked: { hidden: number; total: number } | null };
 
-export default function Discover({ onOpen }: { onOpen: (ca: string) => void }) {
-  const [data, setData] = useState<DiscoverResult | null>(null);
+export default function Discover({ onOpen, onSubscribe }: { onOpen: (ca: string, free?: string) => void; onSubscribe: () => void }) {
+  const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [f, setF] = useState<Filters>(DEFAULTS);
@@ -83,7 +50,7 @@ export default function Discover({ onOpen }: { onOpen: (ca: string) => void }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/discover");
+      const res = await api("/api/discover");
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
       setData(json);
@@ -97,7 +64,11 @@ export default function Discover({ onOpen }: { onOpen: (ca: string) => void }) {
   useEffect(() => {
     load();
     const t = setInterval(load, REFRESH_MS);
-    return () => clearInterval(t);
+    const off = onKeyChange(load);
+    return () => {
+      clearInterval(t);
+      off();
+    };
   }, [load]);
 
   // Kira zon volume dalam browser: GeckoTerminal sekat IP Vercel, tapi benarkan browser (~30/minit setiap pengguna).
@@ -165,11 +136,11 @@ export default function Discover({ onOpen }: { onOpen: (ca: string) => void }) {
       <div className="card discover-head">
         <div>
           <strong>
-            {data ? `${passed.length} coin lulus` : "Mencari coin…"}
+            {data ? `${passed.length + (data.locked?.hidden ?? 0)} coin lulus` : "Mencari coin…"}
           </strong>
           <span className="muted small">
             {data
-              ? ` daripada ${data.candidates.length} coin Solana dari DexScreener · dikemas kini ${new Date(data.updatedAt).toLocaleTimeString("ms-MY", { hour: "2-digit", minute: "2-digit" })}`
+              ? ` daripada ${data.locked?.total ?? data.candidates.length} coin Solana dari DexScreener · dikemas kini ${new Date(data.updatedAt).toLocaleTimeString("ms-MY", { hour: "2-digit", minute: "2-digit" })}`
               : ""}
           </span>
         </div>
@@ -182,7 +153,7 @@ export default function Discover({ onOpen }: { onOpen: (ca: string) => void }) {
           </button>
         </div>
 
-        {showFilters && (
+        {showFilters && !data?.locked && (
           <div className="filters">
             <Num label="Liquidity min ($)" v={f.minLiq} on={(v) => update({ minLiq: v })} />
             <Num label="Market cap min ($)" v={f.minMc} on={(v) => update({ minMc: v })} />
@@ -235,8 +206,8 @@ export default function Discover({ onOpen }: { onOpen: (ca: string) => void }) {
             role="button"
             tabIndex={0}
             className={`coin ${why.length ? "fail" : "pass"}`}
-            onClick={() => onOpen(c.ca)}
-            onKeyDown={(e) => e.key === "Enter" && onOpen(c.ca)}
+            onClick={() => onOpen(c.ca, (c as Row).free)}
+            onKeyDown={(e) => e.key === "Enter" && onOpen(c.ca, (c as Row).free)}
           >
             <div className="coin-top">
               {c.image ? <img src={c.image} alt="" /> : <div className="noimg">{c.symbol.slice(0, 2)}</div>}
@@ -288,7 +259,26 @@ export default function Discover({ onOpen }: { onOpen: (ca: string) => void }) {
             </div>
           </div>
         ))}
-        {data && shown.length === 0 && (
+        {data?.locked && (
+          <div className="locked">
+            <div className="locked-ghosts" aria-hidden>
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="coin ghost-card">
+                  <div className="coin-top"><div className="noimg" /><div className="coin-name"><b>████</b><span>██████</span></div></div>
+                  <div className="coin-stats"><span>████</span><span>████</span><span>████</span></div>
+                </div>
+              ))}
+            </div>
+            <div className="locked-cta">
+              <b>🔒 {data.locked.hidden} coin lagi lulus penapis</b>
+              <span className="muted small">
+                Versi percuma tunjuk 3 coin teratas. Langgan untuk senarai penuh, 🎯 Dekat zon volume, penapis sendiri dan scan mana-mana CA.
+              </span>
+              <button className="copy primary" onClick={onSubscribe}>Langgan RM100 / bulan</button>
+            </div>
+          </div>
+        )}
+        {data && shown.length === 0 && !data.locked && (
           <div className="card muted">
             Tiada coin lulus penapis sekarang. Longgarkan penapis atau tunggu refresh seterusnya (setiap minit).
           </div>

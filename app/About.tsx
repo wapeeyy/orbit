@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { TokenInfo, Activity } from "@/lib/info";
 import { CopyButton } from "./Copy";
+import { api } from "./key";
 
 export function ago(iso: string) {
   const s = (Date.now() - Date.parse(iso)) / 1000;
@@ -29,7 +30,7 @@ const host = (u: string) => {
   }
 };
 
-export default function About({ ca }: { ca: string }) {
+export default function About({ ca, free }: { ca: string; free?: string }) {
   const [info, setInfo] = useState<TokenInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [more, setMore] = useState(false);
@@ -38,7 +39,7 @@ export default function About({ ca }: { ca: string }) {
     let dead = false;
     setInfo(null);
     setError(null);
-    fetch(`/api/info?ca=${ca}`)
+    api(`/api/info?ca=${ca}${free ? `&free=${free}` : ""}`)
       .then(async (r) => {
         const j = await r.json();
         if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
@@ -48,7 +49,7 @@ export default function About({ ca }: { ca: string }) {
     return () => {
       dead = true;
     };
-  }, [ca]);
+  }, [ca, free]);
 
   return (
     <section className="card">

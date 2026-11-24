@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getMarket } from "@/lib/dex";
 import { getHolders, isValidMint } from "@/lib/holders";
+import { canView } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +9,9 @@ export async function GET(req: Request) {
   const ca = new URL(req.url).searchParams.get("ca")?.trim() ?? "";
   if (!isValidMint(ca)) {
     return NextResponse.json({ error: "CA tak sah — mesti alamat Solana (base58, 32 bait)." }, { status: 400 });
+  }
+  if (!canView(req, ca)) {
+    return NextResponse.json({ error: "Langganan diperlukan untuk scan coin ni", locked: true }, { status: 402 });
   }
 
   let market = null;
