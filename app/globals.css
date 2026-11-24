@@ -297,3 +297,5 @@ tr.click:hover td { background: rgba(255,255,255,0.02); }
   .rank-grid { grid-template-columns: 1fr; }
 }
 .wallet-head code.ca { display: block; margin-top: 2px; }
+.tip-box { display: flex; flex-direction: column; gap: 6px; margin: 16px 0 12px; padding: 12px; border-radius: 12px; background: #0b0d15; border: 1px solid var(--line); }
+.tip-box code { color: var(--accent2); }

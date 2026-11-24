@@ -13,7 +13,7 @@ function same(a: string, b: string) {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
-export type KeyPayload = { exp: number; id: string }; // exp dalam ms
+export type KeyPayload = { exp: number; id: string; t?: number }; // exp & t (masa transaksi terakhir) dalam ms
 
 /** Kod akses langganan: payload.tandatangan */
 export function signKey(p: KeyPayload) {

@@ -9,6 +9,7 @@ import { ADMIN_WA_DISPLAY, adminWa } from "./contact";
 
 type Config = {
   ready: boolean;
+  txidClaims: boolean;
   wallet: string | null;
   priceRm: number;
   priceUsdc: number;
@@ -129,22 +130,49 @@ export default function Subscribe() {
   );
 }
 
+const PAY_KEY = "orbit.pay.secret";
+
+/** Payment session secret: kept in this browser until the payment is claimed */
+function paySecret() {
+  try {
+    const s = localStorage.getItem(PAY_KEY);
+    if (s) return s;
+  } catch {}
+  const s = bs58.encode(crypto.getRandomValues(new Uint8Array(32)));
+  try {
+    localStorage.setItem(PAY_KEY, s);
+  } catch {}
+  return s;
+}
+
+/** Same derivation as the server: sha256("orbit-ref:" + secret) → base58 */
+async function refFromSecret(secret: string) {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("orbit-ref:" + secret));
+  return bs58.encode(new Uint8Array(d));
+}
+
 function PayBox({ cfg, onPaid }: { cfg: Config; onPaid: (key: string) => void }) {
   const [token, setToken] = useState<"USDC" | "SOL">("USDC");
   const [qr, setQr] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [sig, setSig] = useState("");
-  const reference = useMemo(() => bs58.encode(crypto.getRandomValues(new Uint8Array(32))), []);
-
-  const amount = token === "USDC" ? cfg.priceUsdc.toFixed(2) : (cfg.priceSol ?? 0).toFixed(4);
-  const url =
-    `solana:${cfg.wallet}?amount=${amount}` +
-    (token === "USDC" ? `&spl-token=${cfg.usdcMint}` : "") +
-    `&reference=${reference}&label=ORBIT&message=${encodeURIComponent(`ORBIT subscription ${cfg.days} days`)}`;
+  const secret = useMemo(() => paySecret(), []);
+  const [reference, setReference] = useState<string | null>(null);
 
   useEffect(() => {
-    QRCode.toDataURL(url, { margin: 1, width: 240, color: { dark: "#07080d", light: "#ffffff" } }).then(setQr);
+    refFromSecret(secret).then(setReference);
+  }, [secret]);
+
+  const amount = token === "USDC" ? cfg.priceUsdc.toFixed(2) : (cfg.priceSol ?? 0).toFixed(4);
+  const url = reference
+    ? `solana:${cfg.wallet}?amount=${amount}` +
+      (token === "USDC" ? `&spl-token=${cfg.usdcMint}` : "") +
+      `&reference=${reference}&label=ORBIT&message=${encodeURIComponent(`ORBIT subscription ${cfg.days} days`)}`
+    : null;
+
+  useEffect(() => {
+    if (url) QRCode.toDataURL(url, { margin: 1, width: 240, color: { dark: "#07080d", light: "#ffffff" } }).then(setQr);
   }, [url]);
 
   const claim = async (body: object) => {
@@ -156,41 +184,43 @@ function PayBox({ cfg, onPaid }: { cfg: Config; onPaid: (key: string) => void })
     return { ok: r.ok, j: await r.json() };
   };
 
-  // Semak automatik setiap 6 saat (bayaran melalui QR / butang wallet) — 20 minit
+  const done = (key: string) => {
+    setStatus("✓ Payment received!");
+    try {
+      localStorage.removeItem(PAY_KEY); // next payment gets a fresh session
+    } catch {}
+    onPaid(key);
+  };
+
+  // Check automatically every 6 seconds while this page is open (QR / wallet button payments)
   useEffect(() => {
     let dead = false;
     const started = Date.now();
     const tick = async () => {
-      if (dead || Date.now() - started > 20 * 60_000) return;
+      if (dead || Date.now() - started > 30 * 60_000) return;
       try {
-        const { ok, j } = await claim({ reference });
+        const { ok, j } = await claim({ secret });
         if (dead) return;
-        if (ok && j.key) {
-          setStatus("✓ Payment received!");
-          onPaid(j.key);
-          return;
-        }
+        if (ok && j.key) return done(j.key);
         if (!ok && !j.pending) setStatus(j.error);
       } catch {}
       setTimeout(tick, 6000);
     };
-    const t = setTimeout(tick, 6000);
+    const t = setTimeout(tick, 1500);
     return () => {
       dead = true;
       clearTimeout(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reference]);
+  }, [secret]);
 
   const verifySig = async () => {
     setBusy(true);
     setStatus("Checking transaction…");
     try {
       const { ok, j } = await claim({ signature: sig.trim() });
-      if (ok && j.key) {
-        setStatus("✓ Payment received!");
-        onPaid(j.key);
-      } else setStatus(j.error ?? "Couldn't verify");
+      if (ok && j.key) done(j.key);
+      else setStatus(j.error ?? "Couldn't verify");
     } finally {
       setBusy(false);
     }
@@ -217,32 +247,53 @@ function PayBox({ cfg, onPaid }: { cfg: Config; onPaid: (key: string) => void })
       </div>
 
       <div className="pay-grid">
-        <div className="qr">{qr && <img src={qr} alt="QR bayaran Solana Pay" />}</div>
+        <div className="qr">{qr && <img src={qr} alt="Solana Pay QR code" />}</div>
         <div className="pay-steps">
-          <p className="small"><b>Option 1 — Phantom / Solflare (easiest)</b></p>
-          <p className="small muted">Scan the QR with your wallet, or tap the button below on your phone. Access turns on by itself in ~30 seconds.</p>
-          <a className="buy-link wallet-btn" href={url}>
-            Open wallet & pay
-          </a>
+          <p className="small"><b>Pay with Phantom / Solflare</b></p>
+          <p className="small muted">
+            Scan the QR with your wallet app, or tap the button below on your phone. Keep this page open — Pro turns on by
+            itself about 30 seconds after you pay.
+          </p>
+          {url && (
+            <a className="buy-link wallet-btn" href={url}>
+              Open wallet & pay
+            </a>
+          )}
         </div>
       </div>
 
-      <p className="small" style={{ marginTop: 16 }}>
-        <b>Option 2 — Send from an exchange / other wallet</b>
-      </p>
-      <p className="small muted">
-        Send exactly <b>{amount} {token}</b> (<b>Solana</b> network) to this address, then paste the Transaction ID (TxID) below.
-      </p>
-      <code className="keybox">{cfg.wallet}</code>
-      <div className="buy" style={{ margin: "8px 0 12px" }}>
-        <CopyButton text={cfg.wallet!} label="Copy wallet address" className="primary" />
-      </div>
-      <div className="search" style={{ marginBottom: 8 }}>
-        <input value={sig} onChange={(e) => setSig(e.target.value)} placeholder="Paste Transaction ID / signature" spellCheck={false} />
-        <button onClick={verifySig} disabled={busy || sig.trim().length < 80}>
-          Verify
-        </button>
-      </div>
+      {cfg.txidClaims ? (
+        <>
+          <p className="small" style={{ marginTop: 16 }}>
+            <b>Or send from an exchange / other wallet</b>
+          </p>
+          <p className="small muted">
+            Send exactly <b>{amount} {token}</b> (<b>Solana</b> network) to this address, then paste the Transaction ID (TxID) below.
+          </p>
+          <code className="keybox">{cfg.wallet}</code>
+          <div className="buy" style={{ margin: "8px 0 12px" }}>
+            <CopyButton text={cfg.wallet!} label="Copy wallet address" className="primary" />
+          </div>
+          <div className="search" style={{ marginBottom: 8 }}>
+            <input value={sig} onChange={(e) => setSig(e.target.value)} placeholder="Paste Transaction ID / signature" spellCheck={false} />
+            <button onClick={verifySig} disabled={busy || sig.trim().length < 80}>
+              Verify
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="tip-box">
+          <b>Your crypto is on an exchange (Binance, Bybit, OKX…)?</b>
+          <span className="small muted">
+            Withdraw it to your own Phantom or Solflare wallet first (choose the <b>Solana</b> network), then pay with the QR /
+            button above. Payments sent straight from an exchange can&apos;t be matched to you.
+          </span>
+          <span className="small muted">
+            ORBIT receives at <code>{cfg.wallet!.slice(0, 4)}…{cfg.wallet!.slice(-4)}</code> — check your wallet shows the same before confirming.
+          </span>
+        </div>
+      )}
+
       {status && <div className={`alert ${status.startsWith("✓") ? "ok" : "danger"}`}>{status}</div>}
       {status && !status.startsWith("✓") && status !== "Checking transaction…" && (
         <a

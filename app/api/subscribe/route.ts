@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
 import { keyFrom, signKey, verifyKey } from "@/lib/auth";
-import { isValidMint } from "@/lib/holders";
 import { kvConfigured, setOnce } from "@/lib/kv";
-import { DAYS, findByReference, payConfig, solUsd, USDC_MINT } from "@/lib/pay";
-import { verifyPayment } from "@/lib/pay";
+import { DAYS, findByReference, payConfig, refFromSecret, solUsd, USDC_MINT, verifyPayment, type Payment } from "@/lib/pay";
 
 export const dynamic = "force-dynamic";
 const nocache = { "cache-control": "no-store" };
 
-/** Harga & wallet untuk page Langgan, + status kod akses (header x-orbit-key) */
+/** Price & wallet for the Subscribe page, plus access-code status (x-orbit-key header) */
 export async function GET(req: Request) {
   const { wallet, priceUsdc, priceRm } = payConfig();
   let priceSol: number | null = null;
@@ -20,7 +18,8 @@ export async function GET(req: Request) {
   const key = keyFrom(req);
   return NextResponse.json(
     {
-      ready: !!wallet && kvConfigured(),
+      ready: !!wallet,
+      txidClaims: kvConfigured(), // pasting a TxID needs a database to stop double claims
       wallet,
       priceRm,
       priceUsdc,
@@ -34,37 +33,53 @@ export async function GET(req: Request) {
   );
 }
 
-/** Tuntut langganan: { signature } atau { reference } (Solana Pay). Pilihan: header x-orbit-key untuk sambung tempoh. */
+/**
+ * Issue an access code for a payment.
+ * Deterministic: the same payment always yields the same code, and a payment only extends a code
+ * if it is newer than the last payment already counted in that code (no replay stacking).
+ */
+function issue(req: Request, pay: Payment, signature: string) {
+  const current = verifyKey(req.headers.get("x-orbit-key"));
+  const stacks = current && (current.t ?? 0) < pay.at;
+  if (current && !stacks) {
+    // This payment is already counted (or older) — keep the current code
+    return { key: req.headers.get("x-orbit-key")!.trim(), exp: current.exp, days: 0, usd: pay.usd };
+  }
+  const exp = Math.max(pay.at, stacks ? current!.exp : 0) + pay.days * 86_400_000;
+  const key = signKey({ exp, id: signature.slice(0, 12), t: pay.at });
+  return { key, exp, days: pay.days, usd: pay.usd };
+}
+
+/** Claim: { secret } (Solana Pay QR / wallet button) or { signature } (needs the database). */
 export async function POST(req: Request) {
   const fail = (error: string, status = 400) => NextResponse.json({ error }, { status, headers: nocache });
-  let body: { signature?: string; reference?: string };
+  let body: { secret?: string; signature?: string };
   try {
     body = await req.json();
   } catch {
     return fail("Invalid request");
   }
-  if (!kvConfigured()) return fail("Payments aren't set up yet — contact admin", 503);
 
-  let signature = body.signature?.trim() ?? "";
   try {
-    if (!signature && body.reference) {
-      if (!isValidMint(body.reference)) return fail("Invalid reference");
-      const found = await findByReference(body.reference);
-      if (!found) return NextResponse.json({ pending: true }, { headers: nocache });
-      signature = found;
+    if (body.secret) {
+      if (!/^[1-9A-HJ-NP-Za-km-z]{32,64}$/.test(body.secret)) return fail("Invalid payment session");
+      const signature = await findByReference(refFromSecret(body.secret));
+      if (!signature) return NextResponse.json({ pending: true }, { headers: nocache });
+      const pay = await verifyPayment(signature);
+      if (Date.now() - pay.at > pay.days * 86_400_000) return fail("This payment has already expired");
+      return NextResponse.json(issue(req, pay, signature), { headers: nocache });
+    }
+
+    const signature = body.signature?.trim() ?? "";
+    if (!kvConfigured()) {
+      return fail("To pay from an exchange, send to your Phantom/Solflare wallet first, then pay with the QR code / wallet button.", 503);
     }
     if (!/^[1-9A-HJ-NP-Za-km-z]{80,90}$/.test(signature)) return fail("Invalid transaction ID");
-
     const pay = await verifyPayment(signature);
-    // Satu transaksi hanya boleh dituntut sekali
+    // A pasted TxID is public, so each one can only be claimed once
     const first = await setOnce(`used:${signature}`, JSON.stringify({ payer: pay.payer, at: Date.now() }), 400 * 86400);
     if (!first) return fail("This transaction has already been used. If this was your payment, re-enter your access code.", 409);
-
-    const current = verifyKey(req.headers.get("x-orbit-key"));
-    const start = Math.max(Date.now(), current?.exp ?? 0);
-    const exp = start + pay.days * 86_400_000;
-    const key = signKey({ exp, id: signature.slice(0, 12) });
-    return NextResponse.json({ key, exp, days: pay.days, usd: pay.usd }, { headers: nocache });
+    return NextResponse.json(issue(req, pay, signature), { headers: nocache });
   } catch (e) {
     return fail((e as Error).message, 400);
   }

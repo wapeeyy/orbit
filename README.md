@@ -44,7 +44,14 @@ Kunci Helius hanya digunakan di server (`app/api/token/route.ts`) — tak pernah
   Bayar 2× = 60 hari (maks 12 bulan). Setiap transaksi hanya boleh dituntut sekali (Upstash Redis).
 - Kod akses = payload bertandatangan HMAC (tiada akaun/kata laluan). Pelanggan simpan kod untuk guna di peranti lain.
 
-### Setup di Vercel (sekali sahaja)
+### Tanpa pangkalan data (lalai)
+
+Bayaran melalui QR / butang wallet (Solana Pay) tak perlu apa-apa setup: browser pelanggan cipta rahsia rawak,
+`reference = sha256("orbit-ref:" + rahsia)`. Reference nampak di blockchain, rahsia tak — jadi hanya pembayar boleh tuntut.
+Kod akses deterministik (bayaran sama = kod sama) dan hanya bayaran lebih baru boleh sambung tempoh, jadi tak boleh "replay".
+Paste TxID (bayar terus dari exchange) hanya hidup bila Upstash Redis disambung.
+
+### Pilihan: Upstash Redis (untuk paste TxID)
 
 1. **Storage → Create Database → Upstash (Redis)** → sambung ke projek `orbit`. Ini isi `KV_REST_API_URL` & `KV_REST_API_TOKEN`.
 2. Pilihan — **Settings → Environment Variables**: `PRICE_USDC`, `ORBIT_SECRET`, `PAY_WALLET` (lalai: `ADukwrnGbjfBPY9CSErNuog1LBibbkdnd9kpnbH5fjeY`).

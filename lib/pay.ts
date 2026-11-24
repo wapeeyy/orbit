@@ -1,4 +1,10 @@
+import { createHash } from "node:crypto";
+import bs58 from "bs58";
 import { rpc } from "./holders";
+
+/** Solana Pay reference derived from a secret only the payer's browser knows.
+ *  The reference is public on-chain; the secret is not — so only the payer can claim. */
+export const refFromSecret = (secret: string) => bs58.encode(createHash("sha256").update("orbit-ref:" + secret).digest());
 
 export const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export const SOL_MINT = "So11111111111111111111111111111111111111112";
