@@ -101,7 +101,7 @@ export default function Wallet({
         Tip: dalam laporan coin, tekan mana-mana wallet top holder untuk trace terus.
       </p>
 
-      {loading && <div className="card muted">Membaca sehingga 200 swap terkini & pegangan wallet… (10–20 saat)</div>}
+      {loading && <div className="card muted">Membaca 300 transaksi terkini & pegangan wallet… (10–20 saat)</div>}
       {error && <div className="alert danger">{error}</div>}
       {(locked || !pro) && (
         <div className="card locked-cta">

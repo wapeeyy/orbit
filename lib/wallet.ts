@@ -6,7 +6,7 @@ import { SOL_MINT, solUsd } from "./pay";
 const USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const USDT = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB";
 const STABLES = new Set([USDC, USDT]);
-const PAGES = 2; // 2 × 100 swap terkini
+const PAGES = 3; // 3 × 100 transaksi terkini (bukan semua swap)
 
 export type Swap = {
   ts: number; // ms
@@ -84,7 +84,8 @@ async function fetchSwaps(address: string) {
   let complete = false;
   for (let page = 0; page < PAGES; page++) {
     const url =
-      `${apiBase()}/v0/addresses/${address}/transactions?api-key=${heliusKey()}&type=SWAP&limit=100` +
+      // Tanpa penapis type=SWAP: Helius terlepas sesetengah swap (bot / pump.fun). Kita tafsir sendiri di toSwap().
+      `${apiBase()}/v0/addresses/${address}/transactions?api-key=${heliusKey()}&limit=100` +
       (before ? `&before=${before}` : "");
     let res = await fetch(url, { cache: "no-store" });
     if (res.status === 429) {
@@ -95,7 +96,8 @@ async function fetchSwaps(address: string) {
       if (page === 0) throw new Error(`Helius ${res.status}: tak dapat baca transaksi wallet`);
       break;
     }
-    const list = (await res.json()) as EnhancedTx[];
+    const body = await res.json();
+    const list = (Array.isArray(body) ? body : []) as EnhancedTx[];
     out.push(...list);
     if (list.length < 100) {
       complete = true;
