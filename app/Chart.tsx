@@ -10,6 +10,16 @@ import {
   LineStyle,
   type UTCTimestamp,
 } from "lightweight-charts";
+import { fetchCandles } from "@/lib/analysis";
+
+// tf -> [timeframe GeckoTerminal, aggregate, bilangan candle]  (sama dengan /api/chart)
+const GT: Record<string, [string, number, number]> = {
+  "5m": ["minute", 5, 288],
+  "15m": ["minute", 15, 192],
+  "1h": ["hour", 1, 168],
+  "4h": ["hour", 4, 180],
+  "1d": ["day", 1, 365],
+};
 
 type Candle = { t: number; o: number; h: number; l: number; c: number; v: number };
 
@@ -97,12 +107,17 @@ export default function Chart({ pool, token }: { pool: string; token: string }) 
     let dead = false;
     setCandles(null);
     setError(null);
-    fetch(`/api/chart?pool=${pool}&token=${token}&tf=${tf}`)
-      .then(async (r) => {
-        const j = await r.json();
-        if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
-        if (!dead) setCandles(j.candles);
-      })
+    // Terus dari browser (GeckoTerminal sekat IP Vercel); kalau gagal, cuba melalui server
+    const [frame, agg, limit] = GT[tf];
+    fetchCandles(pool, token, frame, agg, limit)
+      .catch(() =>
+        fetch(`/api/chart?pool=${pool}&token=${token}&tf=${tf}`).then(async (r) => {
+          const j = await r.json();
+          if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+          return j.candles as Candle[];
+        }),
+      )
+      .then((cs) => !dead && setCandles(cs))
       .catch((e) => !dead && setError(e.message));
     return () => {
       dead = true;

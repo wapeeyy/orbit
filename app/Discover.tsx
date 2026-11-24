@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { VolumeZone } from "@/lib/analysis";
+import { fetchCandles, volumeZone, type VolumeZone } from "@/lib/analysis";
 import type { Candidate, DiscoverResult } from "@/lib/discover";
 import { CopyButton } from "./Copy";
 import { fmtPrice } from "./Chart";
@@ -27,6 +27,8 @@ const DEFAULTS: Filters = {
 };
 const KEY = "orbit.filters.v1";
 const REFRESH_MS = 60_000;
+const ZKEY = "orbit.zones.v1";
+const ZONE_TTL = 10 * 60_000;
 
 const usd = (n: number | null) =>
   n == null ? "—" : "$" + new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n);
@@ -98,31 +100,48 @@ export default function Discover({ onOpen }: { onOpen: (ca: string) => void }) {
     return () => clearInterval(t);
   }, [load]);
 
-  // Kira zon volume satu-satu (GeckoTerminal ~30/minit; CDN simpan 10 minit)
+  // Kira zon volume dalam browser: GeckoTerminal sekat IP Vercel, tapi benarkan browser (~30/minit setiap pengguna).
+  // Hasil disimpan dalam browser 10 minit.
   useEffect(() => {
     if (!data) return;
     let dead = false;
+    let saved: Record<string, { at: number; v: VolumeZone | null }> = {};
+    try {
+      saved = JSON.parse(localStorage.getItem(ZKEY) ?? "{}");
+    } catch {}
+    const fresh: Record<string, VolumeZone | null> = {};
+    for (const [ca, e] of Object.entries(saved)) if (Date.now() - e.at < ZONE_TTL) fresh[ca] = e.v;
+    if (Object.keys(fresh).length) setZones((z) => ({ ...fresh, ...z }));
+
     const todo = data.candidates
-      .filter((c) => c.holders && !(c.ca in zonesRef.current))
+      .filter((c) => c.holders && !(c.ca in zonesRef.current) && !(c.ca in fresh))
       .slice(0, 30);
     if (todo.length === 0) return;
     (async () => {
+      let gap = 2500;
       setZoneBusy({ done: 0, total: todo.length });
       for (let i = 0; i < todo.length && !dead; i++) {
         const c = todo[i];
-        try {
-          const r = await fetch(`/api/zone?pool=${c.pairAddress}&token=${c.ca}`);
-          if (r.ok) {
-            const j = await r.json();
-            if (!dead) setZones((z) => ({ ...z, [c.ca]: j.zone }));
-            if (r.headers.get("x-vercel-cache") === "HIT") {
-              if (!dead) setZoneBusy({ done: i + 1, total: todo.length });
-              continue; // dari cache CDN, tak guna kuota GeckoTerminal
-            }
+        for (let attempt = 0; attempt < 2 && !dead; attempt++) {
+          try {
+            const v = volumeZone(await fetchCandles(c.pairAddress, c.ca, "minute", 15, 192));
+            setZones((z) => ({ ...z, [c.ca]: v }));
+            try {
+              const all = JSON.parse(localStorage.getItem(ZKEY) ?? "{}");
+              all[c.ca] = { at: Date.now(), v };
+              localStorage.setItem(ZKEY, JSON.stringify(all));
+            } catch {}
+            break;
+          } catch (e) {
+            // 429 dari GeckoTerminal datang tanpa header CORS, jadi browser nampak "network error" — anggap had kadar
+            const st = (e as { status?: number }).status;
+            if (st && st !== 429) break;
+            gap = Math.min(gap * 1.5, 8000);
+            await new Promise((res) => setTimeout(res, 15000));
           }
-        } catch {}
+        }
         if (!dead) setZoneBusy({ done: i + 1, total: todo.length });
-        await new Promise((res) => setTimeout(res, 2200));
+        await new Promise((res) => setTimeout(res, gap));
       }
       if (!dead) setZoneBusy(null);
     })();
