@@ -3,9 +3,11 @@ import { rpc } from "./holders";
 export const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export const SOL_MINT = "So11111111111111111111111111111111111111112";
 export const DAYS = 30;
+// Wallet rasmi ORBIT yang terima bayaran (boleh ditukar dengan env PAY_WALLET)
+export const DEFAULT_PAY_WALLET = "ADukwrnGbjfBPY9CSErNuog1LBibbkdnd9kpnbH5fjeY";
 
 export function payConfig() {
-  const wallet = process.env.PAY_WALLET?.trim() || null;
+  const wallet = process.env.PAY_WALLET?.trim() || DEFAULT_PAY_WALLET;
   const priceUsdc = Number(process.env.PRICE_USDC || 23);
   const priceRm = Number(process.env.PRICE_RM || 100);
   return { wallet, priceUsdc, priceRm };

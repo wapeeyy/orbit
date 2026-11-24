@@ -47,7 +47,7 @@ Kunci Helius hanya digunakan di server (`app/api/token/route.ts`) — tak pernah
 ### Setup di Vercel (sekali sahaja)
 
 1. **Storage → Create Database → Upstash (Redis)** → sambung ke projek `orbit`. Ini isi `KV_REST_API_URL` & `KV_REST_API_TOKEN`.
-2. **Settings → Environment Variables**: `PAY_WALLET` (alamat Solana kau), pilihan `PRICE_USDC`, `ORBIT_SECRET`.
+2. Pilihan — **Settings → Environment Variables**: `PRICE_USDC`, `ORBIT_SECRET`, `PAY_WALLET` (lalai: `ADukwrnGbjfBPY9CSErNuog1LBibbkdnd9kpnbH5fjeY`).
 3. Redeploy.
 
 Kalau `ORBIT_SECRET` tak diset, `HELIUS_API_KEY` digunakan — tukar kunci Helius = semua kod akses lama jadi tak sah.
