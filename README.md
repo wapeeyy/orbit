@@ -1,5 +1,9 @@
 # ORBIT
 
+**Cari Coin** — tarik coin Solana dari DexScreener (profil baru, boost, CTO), semak liquidity / MC / volume / umur,
+top holder, dan mint/freeze authority, lalu tunjuk mana yang lulus. Penapis boleh diubah dalam app; refresh setiap minit.
+
+**Scan CA** —
 Paste CA token Solana → harga, market cap, liquidity (DexScreener) + top holder (Helius).
 
 - Ambil 20 akaun token terbesar (`getTokenLargestAccounts`), gabung ikut wallet pemilik.

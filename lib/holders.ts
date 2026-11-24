@@ -18,7 +18,10 @@ export type HolderReport = {
   holders: Holder[]; // wallets only, ranked
   excluded: Holder[]; // pools / curves / programs
   top10Pct: number;
+  top1Pct: number;
   warning: boolean;
+  mintAuthority: string | null; // null = dah revoke (tak boleh cetak token baru)
+  freezeAuthority: string | null; // null = dah revoke (tak boleh beku wallet)
 };
 
 const WARN_THRESHOLD = 30;
@@ -30,13 +33,17 @@ function rpcUrl() {
   return `https://mainnet.helius-rpc.com/?api-key=${key}`;
 }
 
-async function rpc<T>(method: string, params: unknown[]): Promise<T> {
+async function rpc<T>(method: string, params: unknown[], attempt = 0): Promise<T> {
   const res = await fetch(rpcUrl(), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: method, method, params }),
     cache: "no-store",
   });
+  if (res.status === 429 && attempt < 3) {
+    await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+    return rpc<T>(method, params, attempt + 1);
+  }
   if (!res.ok) throw new Error(`RPC ${method} HTTP ${res.status}`);
   const json = await res.json();
   if (json.error) throw new Error(`RPC ${method}: ${json.error.message}`);
@@ -69,12 +76,18 @@ export async function getHolders(
   mint: string,
   pairAddresses: Record<string, string>,
 ): Promise<HolderReport> {
-  const [supplyRes, largest] = await Promise.all([
-    rpc<{ value: { amount: string; decimals: number; uiAmountString: string } }>("getTokenSupply", [mint]),
+  type MintInfo = { supply: string; decimals: number; mintAuthority?: string | null; freezeAuthority?: string | null };
+  const [mintRes, largest] = await Promise.all([
+    rpc<{ value: { data: { parsed?: { type: string; info: MintInfo } } } | null }>("getAccountInfo", [
+      mint,
+      { encoding: "jsonParsed" },
+    ]),
     rpc<{ value: { address: string; amount: string }[] }>("getTokenLargestAccounts", [mint]),
   ]);
-  const supplyRaw = BigInt(supplyRes.value.amount);
-  const decimals = supplyRes.value.decimals;
+  const mintInfo = mintRes.value?.data?.parsed?.info;
+  if (!mintInfo || mintRes.value?.data?.parsed?.type !== "mint") throw new Error("Alamat ni bukan mint token");
+  const supplyRaw = BigInt(mintInfo.supply);
+  const decimals = mintInfo.decimals;
   const accounts = largest.value.slice(0, 20);
 
   // Token account -> wallet pemilik
@@ -127,6 +140,9 @@ export async function getHolders(
     holders,
     excluded,
     top10Pct,
+    top1Pct: holders[0]?.pct ?? 0,
     warning: top10Pct > WARN_THRESHOLD,
+    mintAuthority: mintInfo.mintAuthority ?? null,
+    freezeAuthority: mintInfo.freezeAuthority ?? null,
   };
 }

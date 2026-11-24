@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Discover from "./Discover";
 import type { Market } from "@/lib/dex";
 import type { HolderReport } from "@/lib/holders";
 
@@ -26,14 +27,63 @@ const num = (n: number) => new Intl.NumberFormat("en-US", { notation: "compact",
 const short = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
 
 export default function Home() {
+  const [tab, setTab] = useState<"scan" | "discover">("discover");
+  const [scanCa, setScanCa] = useState<{ ca: string; n: number } | null>(null);
+
+  return (
+    <main>
+      <header className="brand">
+        <div className="logo" aria-hidden>
+          <span />
+        </div>
+        <h1>ORBIT</h1>
+        <p>Cari coin Solana yang okey, atau paste CA untuk semak harga, liquidity & siapa pegang supply.</p>
+      </header>
+
+      <nav className="tabs">
+        <button className={tab === "discover" ? "on" : ""} onClick={() => setTab("discover")}>
+          Cari Coin
+        </button>
+        <button className={tab === "scan" ? "on" : ""} onClick={() => setTab("scan")}>
+          Scan CA
+        </button>
+      </nav>
+
+      <div hidden={tab !== "discover"}>
+        <Discover
+          onOpen={(ca) => {
+            setScanCa((p) => ({ ca, n: (p?.n ?? 0) + 1 }));
+            setTab("scan");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+        />
+      </div>
+      <div hidden={tab !== "scan"}>
+        <ScanView request={scanCa} />
+      </div>
+
+      <footer className="muted small">Data: DexScreener · Helius RPC. Bukan nasihat kewangan — DYOR.</footer>
+    </main>
+  );
+}
+
+function ScanView({ request }: { request: { ca: string; n: number } | null }) {
   const [ca, setCa] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<Result | null>(null);
 
-  async function scan(e?: React.FormEvent) {
+  useEffect(() => {
+    if (request) {
+      setCa(request.ca);
+      scan(undefined, request.ca);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request]);
+
+  async function scan(e?: React.FormEvent, override?: string) {
     e?.preventDefault();
-    const q = ca.trim();
+    const q = (override ?? ca).trim();
     if (!q) return;
     setLoading(true);
     setError(null);
@@ -55,15 +105,7 @@ export default function Home() {
   const maxPct = h?.holders[0]?.pct ?? 1;
 
   return (
-    <main>
-      <header className="brand">
-        <div className="logo" aria-hidden>
-          <span />
-        </div>
-        <h1>ORBIT</h1>
-        <p>Paste CA token Solana — harga, market cap, liquidity & siapa pegang supply.</p>
-      </header>
-
+    <>
       <form onSubmit={scan} className="search">
         <input
           value={ca}
@@ -131,6 +173,11 @@ export default function Home() {
                   </div>
                 </div>
 
+                <div className="badges">
+                  <Badge ok={h.mintAuthority === null} yes="Mint authority revoked" no="Mint authority AKTIF — dev boleh cetak token baru" />
+                  <Badge ok={h.freezeAuthority === null} yes="Freeze authority revoked" no="Freeze authority AKTIF — dev boleh beku wallet" />
+                </div>
+
                 <table>
                   <thead>
                     <tr>
@@ -185,8 +232,7 @@ export default function Home() {
         </>
       )}
 
-      <footer className="muted small">Data: DexScreener · Helius RPC. Bukan nasihat kewangan.</footer>
-    </main>
+    </>
   );
 }
 
@@ -198,4 +244,8 @@ function Stat({ label, value, sub, tone }: { label: string; value: string; sub?:
       {sub && <span className={`sub ${tone ?? ""}`}>{sub}</span>}
     </div>
   );
+}
+
+function Badge({ ok, yes, no }: { ok: boolean; yes: string; no: string }) {
+  return <span className={`badge ${ok ? "ok" : "bad"}`}>{ok ? "✓ " + yes : "✕ " + no}</span>;
 }
