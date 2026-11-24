@@ -69,6 +69,9 @@ export default function Subscribe() {
           <li>Senarai 🎯 Dekat zon volume</li>
           <li>Scan mana-mana CA: holder, chart, naratif, post terakhir owner</li>
           <li>Penapis boleh ubah ikut gaya trading kau</li>
+          <li>📋 Laporan ORBIT: skor keselamatan, dev & wallet insider</li>
+          <li>👛 Trace wallet: beli/jual, untung rugi, win rate</li>
+          <li>🎮 Demo trade dengan 10 SOL tipu</li>
         </ul>
         <p className="muted small">Bayar guna USDC atau SOL (Solana). Akses aktif automatik sebaik bayaran disahkan.</p>
       </div>

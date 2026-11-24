@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { WalletReport } from "@/lib/wallet";
 import { CopyButton } from "./Copy";
 import { api } from "./key";
+import { usePro } from "./ProLock";
 
 const usd = (n: number | null | undefined) =>
   n == null ? "—" : "$" + new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n);
@@ -32,6 +33,7 @@ export default function Wallet({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
+  const pro = usePro();
 
   async function trace(a = addr) {
     const q = a.trim();
@@ -101,7 +103,7 @@ export default function Wallet({
 
       {loading && <div className="card muted">Membaca sehingga 200 swap terkini & pegangan wallet… (10–20 saat)</div>}
       {error && <div className="alert danger">{error}</div>}
-      {locked && (
+      {(locked || !pro) && (
         <div className="card locked-cta">
           <b>🔒 Trace wallet untuk pelanggan ORBIT Pro</b>
           <span className="muted small">Tengok coin apa wallet tu beli & jual, untung rugi, win rate dan pegangan semasa.</span>

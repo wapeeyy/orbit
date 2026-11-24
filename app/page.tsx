@@ -9,6 +9,7 @@ import Subscribe from "./Subscribe";
 import Report from "./Report";
 import Wallet from "./Wallet";
 import Demo, { DemoTrade } from "./Demo";
+import ProLock, { usePro } from "./ProLock";
 import type { TokenInfo } from "@/lib/info";
 import type { TokenExtra } from "@/lib/report";
 import { api, isActive, onKeyChange, setKey } from "./key";
@@ -115,7 +116,15 @@ export default function Home() {
         <Wallet request={walletReq} onOpen={(ca) => openCa(ca)} onSubscribe={goSub} />
       </div>
       <div hidden={tab !== "demo"}>
-        <Demo onOpen={(ca) => openCa(ca)} />
+        {pro ? (
+          <Demo onOpen={(ca) => openCa(ca)} />
+        ) : (
+          <ProLock
+            title="Demo trade untuk pelanggan Pro"
+            text="Latih strategi dengan 10 SOL tipu guna harga sebenar: beli, jual separuh atau semua, tengok untung rugi terus — tanpa risiko duit sebenar."
+            onSubscribe={goSub}
+          />
+        )}
       </div>
       <div hidden={tab !== "sub"}>
         <Subscribe />
@@ -135,6 +144,7 @@ function ScanView({
   onSubscribe: () => void;
   onTrace: (address: string) => void;
 }) {
+  const pro = usePro();
   const [info, setInfo] = useState<TokenInfo | null | undefined>(undefined);
   const [extra, setExtra] = useState<TokenExtra | null>(null);
   const [ca, setCa] = useState("");
@@ -240,17 +250,26 @@ function ScanView({
             )}
           </section>
 
-          <Report
-            key={"report-" + data.ca}
-            ca={data.ca}
-            market={m ?? null}
-            holders={h ?? null}
-            info={info}
-            free={free}
-            onExtra={setExtra}
-          />
-
-          {m && <DemoTrade key={"demo-" + data.ca} ca={data.ca} symbol={m.symbol} name={m.name} image={m.image} priceSol={m.priceSol} />}
+          {pro ? (
+            <>
+              <Report
+                key={"report-" + data.ca}
+                ca={data.ca}
+                market={m ?? null}
+                holders={h ?? null}
+                info={info}
+                free={free}
+                onExtra={setExtra}
+              />
+              {m && <DemoTrade key={"demo-" + data.ca} ca={data.ca} symbol={m.symbol} name={m.name} image={m.image} priceSol={m.priceSol} />}
+            </>
+          ) : (
+            <ProLock
+              title="Laporan ORBIT & Demo beli"
+              text="Skor keselamatan 0–100, dev masih pegang berapa %, wallet baru/insider dalam top holder, tekanan beli vs jual, laporan sedia copy — dan demo beli coin ni dengan SOL tipu."
+              onSubscribe={onSubscribe}
+            />
+          )}
 
           <About key={"about-" + data.ca} ca={data.ca} free={free} onInfo={setInfo} />
 
