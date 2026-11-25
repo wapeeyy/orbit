@@ -649,3 +649,11 @@ footer { font-family: var(--narrow); letter-spacing: 0.16em; text-transform: upp
 .admin-src i { height: 6px; border-radius: 3px; background: var(--gold); min-width: 2px; }
 .admin-src b { text-align: right; font-weight: 500; }
 @media (max-width: 720px) { .admin-split { grid-template-columns: 1fr; } }
+
+.gift-maker { margin: 0 0 8px; }
+.gift-form { display: grid; grid-template-columns: 1fr 100px 110px 140px; gap: 8px; }
+.gift-form input, .gift-form select { background: #0b0d15; border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 9px 10px; font-size: 13px; }
+.gift-form .tier-btn { padding: 9px; }
+.gift-out { display: grid; gap: 8px; margin-top: 12px; }
+.admin-row.gift b { color: #7aa2ff; }
+@media (max-width: 720px) { .gift-form { grid-template-columns: 1fr 1fr; } .gift-form input { grid-column: 1 / -1; } .gift-form .tier-btn { grid-column: 1 / -1; } }

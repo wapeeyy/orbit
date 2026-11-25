@@ -5,7 +5,8 @@ import { api } from "../key";
 
 type Ev =
   | { type: "trial"; at: number; wallet: string; country: string }
-  | { type: "payment"; at: number; plan: string; tier: "pro" | "ultra"; usd: number; days: number; payer: string; tx: string; country: string };
+  | { type: "payment"; at: number; plan: string; tier: "pro" | "ultra"; usd: number; days: number; payer: string; tx: string; country: string }
+  | { type: "gift"; at: number; label: string; tier: "pro" | "ultra"; days: number; country?: string };
 type Day = { day: string; visitors: number; views: number; countries: Record<string, number>; sources: Record<string, number> };
 type Data = {
   events: Ev[];
@@ -28,7 +29,7 @@ const flag = (cc: string) => (/^[A-Z]{2}$/.test(cc) ? String.fromCodePoint(...[.
 export default function Admin() {
   const [d, setD] = useState<Data | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "trial" | "payment">("all");
+  const [filter, setFilter] = useState<"all" | "trial" | "payment" | "gift">("all");
 
   const load = () =>
     api("/api/admin")
@@ -52,7 +53,7 @@ export default function Admin() {
     const pays = d.events.filter((e): e is Extract<Ev, { type: "payment" }> => e.type === "payment");
     const active = pays.filter((p) => p.at + p.days * DAY > now);
     const countries = new Map<string, number>();
-    d.events.forEach((e) => countries.set(e.country, (countries.get(e.country) ?? 0) + 1));
+    d.events.forEach((e) => e.type !== "gift" && countries.set(e.country, (countries.get(e.country) ?? 0) + 1));
     const trialWallets = new Set(d.events.filter((e) => e.type === "trial").map((e) => (e as { wallet: string }).wallet));
     const converted = new Set(pays.filter((p) => trialWallets.has(p.payer)).map((p) => p.payer)).size;
     return {
@@ -82,6 +83,7 @@ export default function Admin() {
       )}
       {d && stats && (
         <>
+          <GiftMaker onMade={load} />
           {d.traffic && <Traffic t={d.traffic} />}
           <h2 className="admin-h2">Sign-ups & payments</h2>
           <div className="admin-grid">
@@ -102,9 +104,9 @@ export default function Admin() {
             </div>
           )}
           <div className="views" style={{ margin: "16px 0 10px" }}>
-            {(["all", "trial", "payment"] as const).map((f) => (
+            {(["all", "trial", "payment", "gift"] as const).map((f) => (
               <button key={f} className={filter === f ? "on" : ""} onClick={() => setFilter(f)}>
-                {f === "all" ? "All" : f === "trial" ? "Trials" : "Payments"}
+                {f === "all" ? "All" : f === "trial" ? "Trials" : f === "payment" ? "Payments" : "Free codes"}
               </button>
             ))}
           </div>
@@ -112,7 +114,16 @@ export default function Admin() {
             <p className="muted">Nothing yet — new trials and payments appear here as they happen.</p>
           ) : (
             <div className="admin-table">
-              {rows.map((e, i) => (
+              {rows.map((e, i) =>
+                e.type === "gift" ? (
+                  <div key={i} className="admin-row gift">
+                    <span className="muted small">{when(e.at)}</span>
+                    <b>FREE {e.tier.toUpperCase()}</b>
+                    <span className="small">{e.days} days</span>
+                    <span className="mono small">{e.label}</span>
+                    <span />
+                  </div>
+                ) : (
                 <div key={i} className={`admin-row ${e.type}`}>
                   <span className="muted small">{when(e.at)}</span>
                   <b>{e.type === "trial" ? "TRIAL" : `${e.tier.toUpperCase()} $${e.usd}`}</b>
@@ -122,7 +133,8 @@ export default function Admin() {
                   </a>
                   <span>{flag(e.country)}</span>
                 </div>
-              ))}
+                ),
+              )}
             </div>
           )}
           <p className="muted small" style={{ marginTop: 16 }}>
@@ -132,6 +144,61 @@ export default function Admin() {
         </>
       )}
     </main>
+  );
+}
+
+/** Free access codes for influencers, giveaway winners and partners */
+function GiftMaker({ onMade }: { onMade: () => void }) {
+  const [tier, setTier] = useState<"pro" | "ultra">("pro");
+  const [days, setDays] = useState(30);
+  const [label, setLabel] = useState("");
+  const [out, setOut] = useState<{ link: string; tier: string; days: number; label: string } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const make = async () => {
+    setErr(null);
+    setCopied(false);
+    const r = await api("/api/admin/code", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tier, days, label }) });
+    const j = await r.json();
+    if (!r.ok) return setErr(j.error ?? "Failed");
+    setOut(j);
+    onMade();
+  };
+  return (
+    <div className="card gift-maker">
+      <h2 className="admin-h2" style={{ marginTop: 0 }}>Free access code (influencer / giveaway)</h2>
+      <div className="gift-form">
+        <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Name, e.g. kol-ali or giveaway-1" />
+        <select value={tier} onChange={(e) => setTier(e.target.value as "pro" | "ultra")}>
+          <option value="pro">Pro</option>
+          <option value="ultra">Ultra</option>
+        </select>
+        <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
+          {[7, 14, 30, 60, 90, 180, 365].map((d) => (
+            <option key={d} value={d}>{d} days</option>
+          ))}
+        </select>
+        <button className="tier-btn pro" onClick={make} disabled={label.trim().length < 2}>Create link</button>
+      </div>
+      {err && <div className="alert danger">{err}</div>}
+      {out && (
+        <div className="gift-out">
+          <span className="small">
+            {out.label} · {out.tier.toUpperCase()} · {out.days} days — send this link (opens ORBIT and turns the plan on):
+          </span>
+          <code className="keybox">{out.link}</code>
+          <button
+            className="ghost"
+            onClick={() => {
+              navigator.clipboard.writeText(out.link).then(() => setCopied(true));
+            }}
+          >
+            {copied ? "Copied" : "Copy link"}
+          </button>
+        </div>
+      )}
+      <p className="muted small">Visits from this link show up under Visitors with the same name, so you can see how many people each influencer sends.</p>
+    </div>
   );
 }
 

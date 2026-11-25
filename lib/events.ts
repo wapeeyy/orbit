@@ -3,7 +3,8 @@ import { kvConfigured, kvPipeline } from "./kv";
 // Sign-ups & payments log for the owner's admin page (newest first, last 5000 kept)
 export type OrbitEvent =
   | { type: "trial"; at: number; wallet: string; country: string }
-  | { type: "payment"; at: number; plan: string; tier: "pro" | "ultra"; usd: number; days: number; payer: string; tx: string; country: string };
+  | { type: "payment"; at: number; plan: string; tier: "pro" | "ultra"; usd: number; days: number; payer: string; tx: string; country: string }
+  | { type: "gift"; at: number; label: string; tier: "pro" | "ultra"; days: number };
 
 export const countryOf = (req: Request) => req.headers.get("x-vercel-ip-country") ?? "??";
 
