@@ -666,18 +666,25 @@ const MTF: { id: string; label: string }[] = [
 
 /** Ultra: the ORBIT read for every timeframe at once */
 function MultiRead({ pool, token, fixture }: { pool: string; token: string; fixture?: Record<string, Candle[]> }) {
-  const [rows, setRows] = useState<Record<string, Analysis | null | undefined>>({});
+  const [rows, setRows] = useState<Record<string, Analysis | null | false | undefined>>({});
   useEffect(() => {
     let dead = false;
     (async () => {
+      const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
       for (const t of MTF) {
-        try {
-          const [frame, agg, limit] = GT[t.id];
-          const cs = fixture ? fixture[t.id] ?? [] : await fetchCandles(pool, token, frame, agg, limit);
-          if (!dead) setRows((r) => ({ ...r, [t.id]: cs.length > 30 ? taAnalyse(cs) : null }));
-        } catch {
-          if (!dead) setRows((r) => ({ ...r, [t.id]: null }));
+        const [frame, agg, limit] = GT[t.id];
+        let cs: Candle[] | null = null;
+        // GeckoTerminal rate-limits bursts: retry with a growing pause instead of giving up
+        for (let attempt = 0; attempt < 4 && !cs && !dead; attempt++) {
+          try {
+            cs = fixture ? fixture[t.id] ?? [] : await fetchCandles(pool, token, frame, agg, limit);
+          } catch {
+            await wait(1500 * (attempt + 1));
+          }
         }
+        if (dead) return;
+        setRows((r) => ({ ...r, [t.id]: cs && cs.length > 30 ? taAnalyse(cs) : cs ? null : false }));
+        await wait(400);
       }
     })();
     return () => {
@@ -708,7 +715,8 @@ function MultiRead({ pool, token, fixture }: { pool: string; token: string; fixt
         {MTF.map((t) => {
           const a = rows[t.id];
           if (a === undefined) return <span key={t.id} className="mtf-row muted small">{t.label} · loading…</span>;
-          if (a === null) return <span key={t.id} className="mtf-row muted small">{t.label} · not enough data</span>;
+          if (a === null) return <span key={t.id} className="mtf-row muted small">{t.label} · coin too new for this timeframe</span>;
+          if (a === false) return <span key={t.id} className="mtf-row muted small">{t.label} · couldn&apos;t load, refresh to retry</span>;
           const r = a.read;
           const tone = r.bias === "Bullish" ? "up" : r.bias === "Bearish" ? "down" : "flat";
           return (
