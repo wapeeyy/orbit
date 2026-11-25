@@ -11,6 +11,7 @@ import Report from "./Report";
 import Wallet from "./Wallet";
 import Demo, { DemoTrade } from "./Demo";
 import ProLock, { usePro } from "./ProLock";
+import AlertWatcher from "./AlertWatcher";
 import { Galaxy, Icon } from "./Cosmos";
 import type { TokenInfo } from "@/lib/info";
 import type { TokenExtra } from "@/lib/report";
@@ -158,6 +159,7 @@ export default function Home() {
         <Subscribe />
       </div>
 
+      {pro && <AlertWatcher onOpen={(ca) => openCa(ca)} />}
       <footer className="muted small">Data: DexScreener · Helius RPC. Not financial advice — DYOR.</footer>
     </main>
   );
@@ -301,7 +303,9 @@ function ScanView({
 
           <About key={"about-" + data.ca} ca={data.ca} free={free} onInfo={setInfo} />
 
-          {m?.pairAddress && <Chart key={m.pairAddress} pool={m.pairAddress} token={data.ca} />}
+          {m?.pairAddress && (
+            <Chart key={m.pairAddress} pool={m.pairAddress} token={data.ca} symbol={m.symbol} pro={pro} onSubscribe={onSubscribe} onTrace={onTrace} />
+          )}
 
           <section className="card">
             <div className="section-head">

@@ -14,6 +14,8 @@ import {
 } from "lightweight-charts";
 import { fetchCandles } from "@/lib/analysis";
 import { analyse as taAnalyse, type Analysis, type Zone } from "@/lib/ta";
+import { fetchWhales, type WhaleTrade } from "@/lib/whales";
+import { addAlert, getAlerts, onAlertsChange, removeAlert, type PriceAlert } from "./alerts";
 
 // tf -> [timeframe GeckoTerminal, aggregate, bilangan candle]  (sama dengan /api/chart)
 const GT: Record<string, [string, number, number]> = {
@@ -100,25 +102,91 @@ function analyse(cs: Candle[]) {
   };
 }
 
-type Layer = "structure" | "levels" | "profile" | "fib" | "ema" | "vwap" | "rsi";
-const LAYERS: { id: Layer; label: string; color: string }[] = [
-  { id: "structure", label: "Structure", color: "#f3d9a4" },
-  { id: "levels", label: "S/R zones", color: "#7aa2ff" },
-  { id: "profile", label: "Volume profile", color: ZONE },
-  { id: "fib", label: "Fib", color: "#c792ea" },
+type Layer = "structure" | "levels" | "profile" | "fib" | "whales" | "ema" | "vwap" | "rsi";
+const LAYERS: { id: Layer; label: string; color: string; pro?: boolean }[] = [
+  { id: "structure", label: "Structure", color: "#f3d9a4", pro: true },
+  { id: "levels", label: "S/R zones", color: "#7aa2ff", pro: true },
+  { id: "profile", label: "Volume profile", color: ZONE, pro: true },
+  { id: "whales", label: "Whales", color: "#4dd0ff", pro: true },
+  { id: "fib", label: "Fib", color: "#c792ea", pro: true },
   { id: "ema", label: "EMA 20/50", color: "#5ad1ff" },
   { id: "vwap", label: "VWAP", color: "#ffffff" },
   { id: "rsi", label: "RSI", color: "#b388ff" },
 ];
-const DEFAULT_LAYERS: Layer[] = ["structure", "levels", "profile", "ema", "rsi"];
+const DEFAULT_LAYERS: Layer[] = ["structure", "levels", "profile", "whales", "ema", "rsi"];
+const kusd = (n: number) => "$" + new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 
-export default function Chart({ pool, token, fixture, layers: initialLayers }: { pool: string; token: string; fixture?: Record<string, Candle[]>; layers?: Layer[] }) {
+export default function Chart({
+  pool,
+  token,
+  symbol = "",
+  pro = false,
+  onSubscribe,
+  onTrace,
+  fixture,
+  whalesFixture,
+  layers: initialLayers,
+}: {
+  pool: string;
+  token: string;
+  symbol?: string;
+  pro?: boolean;
+  onSubscribe?: () => void;
+  onTrace?: (wallet: string) => void;
+  fixture?: Record<string, Candle[]>;
+  whalesFixture?: WhaleTrade[];
+  layers?: Layer[];
+}) {
   const [tf, setTf] = useState("15m");
   const [candles, setCandles] = useState<Candle[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [layers, setLayers] = useState<Set<Layer>>(() => new Set(initialLayers ?? DEFAULT_LAYERS));
   const box = useRef<HTMLDivElement>(null);
   const overlay = useRef<HTMLCanvasElement>(null);
+  const wrap = useRef<HTMLElement>(null);
+  const [full, setFull] = useState(false);
+  const [whales, setWhales] = useState<WhaleTrade[] | null>(null);
+  const [vh, setVh] = useState(800);
+
+  useEffect(() => {
+    if (!pro) return;
+    if (whalesFixture) return setWhales(whalesFixture);
+    let dead = false;
+    fetchWhales(pool, token).then((w) => !dead && setWhales(w)).catch(() => !dead && setWhales([]));
+    return () => {
+      dead = true;
+    };
+  }, [pool, token, pro, whalesFixture]);
+
+  // full-screen chart: real fullscreen + landscape where the browser allows it, CSS overlay otherwise (iPhone)
+  async function enterFull() {
+    setFull(true);
+    try {
+      await wrap.current?.requestFullscreen?.();
+      await (screen.orientation as unknown as { lock?: (o: string) => Promise<void> })?.lock?.("landscape");
+    } catch {}
+  }
+  async function exitFull() {
+    setFull(false);
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      screen.orientation?.unlock?.();
+    } catch {}
+  }
+  useEffect(() => {
+    if (!full) return;
+    const r = () => setVh(window.innerHeight);
+    r();
+    window.addEventListener("resize", r);
+    const fs = () => !document.fullscreenElement && setFull(false);
+    document.addEventListener("fullscreenchange", fs);
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("resize", r);
+      document.removeEventListener("fullscreenchange", fs);
+      document.body.style.overflow = "";
+    };
+  }, [full]);
 
   useEffect(() => {
     let dead = false;
@@ -147,20 +215,22 @@ export default function Chart({ pool, token, fixture, layers: initialLayers }: {
 
   const a = useMemo(() => (candles ? analyse(candles) : null), [candles]);
   const ta = useMemo(() => (candles && candles.length > 30 ? taAnalyse(candles) : null), [candles]);
-  const on = (l: Layer) => layers.has(l);
-  const toggle = (l: Layer) =>
+  const on = (l: Layer) => layers.has(l) && (pro || !LAYERS.find((x) => x.id === l)?.pro);
+  const toggle = (l: Layer) => {
+    if (!pro && LAYERS.find((x) => x.id === l)?.pro) return onSubscribe?.();
     setLayers((s) => {
       const n = new Set(s);
       if (n.has(l)) n.delete(l); else n.add(l);
       return n;
     });
+  };
 
   useEffect(() => {
     if (!box.current || !candles || candles.length === 0 || !a) return;
     const el = box.current;
     const showRsi = on("rsi") && !!ta;
     const chart = createChart(el, {
-      height: showRsi ? 430 : 360,
+      height: full ? Math.max(260, vh - (showRsi ? 120 : 110)) : showRsi ? 430 : 360,
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: "#8a90a6",
@@ -222,6 +292,23 @@ export default function Chart({ pool, token, fixture, layers: initialLayers }: {
     } else {
       markers.push({ time: a.hi.t as UTCTimestamp, position: "aboveBar", color: UP, shape: "arrowDown", text: "HIGH" });
       markers.push({ time: a.lo.t as UTCTimestamp, position: "belowBar", color: DOWN, shape: "arrowUp", text: "LOW" });
+    }
+    if (on("whales") && whales) {
+      // one marker per candle & side (summed), only the biggest few so the chart stays readable
+      const step = candles.length > 1 ? candles[1].t - candles[0].t : 60;
+      const first = candles[0].t, lastT = candles[candles.length - 1].t + step;
+      const agg = new Map<string, { t: number; kind: "buy" | "sell"; usd: number; n: number }>();
+      for (const w of whales) {
+        if (w.t < first || w.t >= lastT) continue;
+        const t = first + Math.floor((w.t - first) / step) * step;
+        const k = `${t}-${w.kind}`;
+        const g = agg.get(k) ?? { t, kind: w.kind, usd: 0, n: 0 };
+        g.usd += w.usd; g.n++;
+        agg.set(k, g);
+      }
+      const top = [...agg.values()].sort((x, y) => y.usd - x.usd).slice(0, el.clientWidth < 600 ? 4 : 7);
+      for (const g of top)
+        markers.push({ time: g.t as UTCTimestamp, position: g.kind === "buy" ? "belowBar" : "aboveBar", color: g.kind === "buy" ? "#4dd0ff" : "#ff7ab6", shape: "circle", size: 0.5, text: `🐋 ${g.kind === "buy" ? "B" : "S"} ${kusd(g.usd)}${g.n > 1 ? ` ×${g.n}` : ""}` });
     }
     createSeriesMarkers(price, markers.sort((x, y) => (x.time as number) - (y.time as number)));
 
@@ -350,14 +437,17 @@ export default function Chart({ pool, token, fixture, layers: initialLayers }: {
       cv.getContext("2d")?.clearRect(0, 0, cv.width, cv.height);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [candles, a, ta, tf, layers]);
+  }, [candles, a, ta, tf, layers, pro, whales, full, vh]);
 
   const span = TFS.find((x) => x.id === tf)!.span;
 
   return (
-    <section className="card">
+    <section ref={wrap} className={`card chart-card ${full ? "full" : ""}`}>
       <div className="section-head">
         <h3>Chart</h3>
+        <button className="full-btn" onClick={() => (full ? exitFull() : enterFull())} title={full ? "Exit full screen" : "Full screen"}>
+          {full ? "✕ Close" : "⤢ Full screen"}
+        </button>
         <div className="tf">
           {TFS.map((x) => (
             <button key={x.id} className={tf === x.id ? "on" : ""} onClick={() => setTf(x.id)}>
@@ -369,8 +459,8 @@ export default function Chart({ pool, token, fixture, layers: initialLayers }: {
 
       <div className="layers">
         {LAYERS.map((l) => (
-          <button key={l.id} className={on(l.id) ? "on" : ""} onClick={() => toggle(l.id)} style={{ ["--c" as string]: l.color }}>
-            <i />{l.label}
+          <button key={l.id} className={`${on(l.id) ? "on" : ""} ${l.pro && !pro ? "locked" : ""}`} onClick={() => toggle(l.id)} style={{ ["--c" as string]: l.color }}>
+            <i />{l.label}{l.pro && !pro ? " 🔒" : ""}
           </button>
         ))}
       </div>
@@ -383,7 +473,18 @@ export default function Chart({ pool, token, fixture, layers: initialLayers }: {
         <canvas ref={overlay} className="chart-overlay" />
       </div>
 
-      {ta && <OrbitRead ta={ta} tf={tf} />}
+      {full && <p className="muted small full-hint">Tip: turn your phone sideways for a wider chart.</p>}
+      {ta && pro && <OrbitRead ta={ta} tf={tf} />}
+      {ta && pro && <AlertBox ta={ta} ca={token} symbol={symbol} />}
+      {pro && on("whales") && whales && whales.length > 0 && <WhaleList whales={whales} onTrace={onTrace} />}
+      {ta && !pro && (
+        <div className="read locked-read" onClick={onSubscribe}>
+          <span className="label">ORBIT read · {tf}</span>
+          <div className="read-bias blur">{ta.read.bias}</div>
+          <p className="small">🔒 <b>ORBIT Pro</b>: market structure (HH/HL/LH/LL, BOS, CHoCH), support &amp; resistance, volume profile, fib, whale trades on the chart, a daily read with key levels — and price alerts.</p>
+          <button className="copy primary">Unlock with Pro</button>
+        </div>
+      )}
 
       {a && (
         <>
@@ -460,6 +561,89 @@ function OrbitRead({ ta, tf }: { ta: Analysis; tf: string }) {
           <ul className="why watch">{r.plan.map((x) => <li key={x}>{x}</li>)}</ul>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Set price alerts on the key levels (or any price) */
+function AlertBox({ ta, ca, symbol }: { ta: Analysis; ca: string; symbol: string }) {
+  const [list, setList] = useState<PriceAlert[]>([]);
+  const [custom, setCustom] = useState("");
+  useEffect(() => {
+    const sync = () => setList(getAlerts().filter((a) => a.ca === ca));
+    sync();
+    return onAlertsChange(sync);
+  }, [ca]);
+  const r = ta.read;
+  const quick = [
+    ...r.resistance.map((z, i) => ({ label: `R${i + 1}`, price: z.mid })),
+    ...r.support.map((z, i) => ({ label: `S${i + 1}`, price: z.mid })),
+    { label: "POC", price: ta.profile.poc },
+    ...(r.invalidation != null ? [{ label: "Invalid", price: r.invalidation }] : []),
+  ];
+  const add = (price: number, label?: string) =>
+    addAlert({ ca, symbol: symbol || ca.slice(0, 4), price, label, dir: price >= ta.last ? "above" : "below" });
+  return (
+    <div className="alerts">
+      <span className="label">🔔 Price alerts</span>
+      <div className="alert-quick">
+        {quick.map((q) => (
+          <button key={q.label} onClick={() => add(q.price, q.label)}>
+            + {q.label} <em>${fmtPrice(q.price)}</em>
+          </button>
+        ))}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const p = Number(custom.replace(/[$,\s]/g, ""));
+            if (p > 0) add(p);
+            setCustom("");
+          }}
+        >
+          <input value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="Custom price" inputMode="decimal" />
+          <button type="submit">Add</button>
+        </form>
+      </div>
+      {list.length > 0 && (
+        <ul className="alert-list">
+          {list.map((a) => (
+            <li key={a.id} className={a.hit ? "hit" : ""}>
+              <span>{a.dir === "above" ? "▲" : "▼"} ${fmtPrice(a.price)} {a.label && <em>{a.label}</em>}</span>
+              <span className="small">{a.hit ? "Triggered" : `${pct((a.price / ta.last - 1) * 100)} away`}</span>
+              <button onClick={() => removeAlert(a.id)}>✕</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="muted small">Alerts are checked every 30 s while ORBIT is open on this device (sound + notification).</p>
+    </div>
+  );
+}
+
+/** Biggest trades on this pool, newest first */
+function WhaleList({ whales, onTrace }: { whales: WhaleTrade[]; onTrace?: (w: string) => void }) {
+  const buys = whales.filter((w) => w.kind === "buy").reduce((s, w) => s + w.usd, 0);
+  const sells = whales.filter((w) => w.kind === "sell").reduce((s, w) => s + w.usd, 0);
+  return (
+    <div className="whales">
+      <div className="whales-head">
+        <span className="label">🐋 Whale trades (last 24h)</span>
+        <span className="small"><b className="up">Buy {kusd(buys)}</b> · <b className="down">Sell {kusd(sells)}</b></span>
+      </div>
+      <ul>
+        {[...whales].reverse().slice(0, 8).map((w) => (
+          <li key={w.tx}>
+            <b className={w.kind === "buy" ? "up" : "down"}>{w.kind.toUpperCase()}</b>
+            <span>{kusd(w.usd)}</span>
+            <span className="muted small">{when(w.t)}</span>
+            {onTrace ? (
+              <button onClick={() => onTrace(w.wallet)} title="Trace this wallet">{w.wallet.slice(0, 4)}…{w.wallet.slice(-4)} →</button>
+            ) : (
+              <span className="mono small">{w.wallet.slice(0, 4)}…{w.wallet.slice(-4)}</span>
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
