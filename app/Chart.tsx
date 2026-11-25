@@ -7,10 +7,13 @@ import {
   createChart,
   createSeriesMarkers,
   HistogramSeries,
+  LineSeries,
   LineStyle,
+  type SeriesMarker,
   type UTCTimestamp,
 } from "lightweight-charts";
 import { fetchCandles } from "@/lib/analysis";
+import { analyse as taAnalyse, type Analysis, type Zone } from "@/lib/ta";
 
 // tf -> [timeframe GeckoTerminal, aggregate, bilangan candle]  (sama dengan /api/chart)
 const GT: Record<string, [string, number, number]> = {
@@ -97,17 +100,35 @@ function analyse(cs: Candle[]) {
   };
 }
 
-export default function Chart({ pool, token }: { pool: string; token: string }) {
+type Layer = "structure" | "levels" | "profile" | "fib" | "ema" | "vwap" | "rsi";
+const LAYERS: { id: Layer; label: string; color: string }[] = [
+  { id: "structure", label: "Structure", color: "#f3d9a4" },
+  { id: "levels", label: "S/R zones", color: "#7aa2ff" },
+  { id: "profile", label: "Volume profile", color: ZONE },
+  { id: "fib", label: "Fib", color: "#c792ea" },
+  { id: "ema", label: "EMA 20/50", color: "#5ad1ff" },
+  { id: "vwap", label: "VWAP", color: "#ffffff" },
+  { id: "rsi", label: "RSI", color: "#b388ff" },
+];
+const DEFAULT_LAYERS: Layer[] = ["structure", "levels", "profile", "ema", "rsi"];
+
+export default function Chart({ pool, token, fixture, layers: initialLayers }: { pool: string; token: string; fixture?: Record<string, Candle[]>; layers?: Layer[] }) {
   const [tf, setTf] = useState("15m");
   const [candles, setCandles] = useState<Candle[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [layers, setLayers] = useState<Set<Layer>>(() => new Set(initialLayers ?? DEFAULT_LAYERS));
   const box = useRef<HTMLDivElement>(null);
+  const overlay = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     let dead = false;
     setCandles(null);
     setError(null);
-    // Terus dari browser (GeckoTerminal sekat IP Vercel); kalau gagal, cuba melalui server
+    if (fixture) {
+      setCandles(fixture[tf] ?? []);
+      return;
+    }
+    // Straight from the browser (GeckoTerminal blocks Vercel IPs); fall back to the server route
     const [frame, agg, limit] = GT[tf];
     fetchCandles(pool, token, frame, agg, limit)
       .catch(() =>
@@ -122,28 +143,35 @@ export default function Chart({ pool, token }: { pool: string; token: string }) 
     return () => {
       dead = true;
     };
-  }, [pool, token, tf]);
+  }, [pool, token, tf, fixture]);
 
   const a = useMemo(() => (candles ? analyse(candles) : null), [candles]);
+  const ta = useMemo(() => (candles && candles.length > 30 ? taAnalyse(candles) : null), [candles]);
+  const on = (l: Layer) => layers.has(l);
+  const toggle = (l: Layer) =>
+    setLayers((s) => {
+      const n = new Set(s);
+      if (n.has(l)) n.delete(l); else n.add(l);
+      return n;
+    });
 
   useEffect(() => {
     if (!box.current || !candles || candles.length === 0 || !a) return;
     const el = box.current;
+    const showRsi = on("rsi") && !!ta;
     const chart = createChart(el, {
-      height: 340,
+      height: showRsi ? 430 : 360,
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: "#8a90a6",
         fontSize: 11,
         attributionLogo: false,
+        panes: { separatorColor: "#1f2333", enableResize: false },
       },
       grid: { vertLines: { color: "rgba(255,255,255,0.04)" }, horzLines: { color: "rgba(255,255,255,0.04)" } },
       rightPriceScale: { borderColor: "#1f2333" },
-      timeScale: { borderColor: "#1f2333", timeVisible: tf !== "1d", secondsVisible: false },
-      localization: {
-        priceFormatter: fmtPrice,
-        timeFormatter: (t: number) => when(t),
-      },
+      timeScale: { borderColor: "#1f2333", timeVisible: tf !== "1d", secondsVisible: false, rightOffset: 6 },
+      localization: { priceFormatter: fmtPrice, timeFormatter: (t: number) => when(t) },
       crosshair: { mode: 0 },
     });
 
@@ -157,44 +185,172 @@ export default function Chart({ pool, token }: { pool: string; token: string }) 
     });
     price.setData(candles.map((c) => ({ time: c.t as UTCTimestamp, open: c.o, high: c.h, low: c.l, close: c.c })));
 
-    const vol = chart.addSeries(HistogramSeries, {
-      priceFormat: { type: "volume" },
-      priceScaleId: "",
-      lastValueVisible: false,
-      priceLineVisible: false,
-    });
-    vol.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
-    price.priceScale().applyOptions({ scaleMargins: { top: 0.08, bottom: 0.25 } });
+    const vol = chart.addSeries(HistogramSeries, { priceFormat: { type: "volume" }, priceScaleId: "", lastValueVisible: false, priceLineVisible: false });
+    vol.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+    price.priceScale().applyOptions({ scaleMargins: { top: 0.08, bottom: 0.22 } });
     vol.setData(
       candles.map((c) => ({
         time: c.t as UTCTimestamp,
         value: c.v,
-        color: c.t === a.big.t ? ZONE : c.c >= c.o ? "rgba(62,230,160,0.35)" : "rgba(255,77,94,0.35)",
+        color: c.t === a.big.t ? ZONE : c.c >= c.o ? "rgba(62,230,160,0.3)" : "rgba(255,77,94,0.3)",
       })),
     );
 
-    // Garisan tertinggi / terendah / zon volume
+    const line = (data: number[], color: string, width = 1, style = LineStyle.Solid) => {
+      const s = chart.addSeries(LineSeries, { color, lineWidth: width as 1, lineStyle: style, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false, priceFormat: { type: "custom", formatter: fmtPrice, minMove: 1e-12 } });
+      s.setData(candles.map((c, i) => ({ time: c.t as UTCTimestamp, value: data[i] })));
+    };
+    if (ta && on("ema")) {
+      line(ta.ema20, "#5ad1ff", 1);
+      line(ta.ema50, "#3f6fd8", 2);
+    }
+    if (ta && on("vwap")) line(ta.vwap, "rgba(255,255,255,0.75)", 1, LineStyle.Dashed);
+
     price.createPriceLine({ price: a.hi.h, color: UP, lineStyle: LineStyle.Dashed, lineWidth: 1, axisLabelVisible: true, title: "High" });
     price.createPriceLine({ price: a.lo.l, color: DOWN, lineStyle: LineStyle.Dashed, lineWidth: 1, axisLabelVisible: true, title: "Low" });
-    price.createPriceLine({ price: a.zone.to, color: ZONE, lineStyle: LineStyle.Dotted, lineWidth: 1, axisLabelVisible: false, title: "" });
-    price.createPriceLine({ price: a.zone.from, color: ZONE, lineStyle: LineStyle.Dotted, lineWidth: 1, axisLabelVisible: false, title: "Volume zone" });
+    if (ta && on("profile")) price.createPriceLine({ price: ta.profile.poc, color: ZONE, lineStyle: LineStyle.Solid, lineWidth: 1, axisLabelVisible: true, title: "POC" });
 
-    const markers = [
-      { time: a.hi.t as UTCTimestamp, position: "aboveBar" as const, color: UP, shape: "arrowDown" as const, text: "HIGH" },
-      { time: a.lo.t as UTCTimestamp, position: "belowBar" as const, color: DOWN, shape: "arrowUp" as const, text: "LOW" },
-    ];
-    if (a.big.t !== a.hi.t && a.big.t !== a.lo.t)
-      markers.push({ time: a.big.t as UTCTimestamp, position: "aboveBar" as const, color: ZONE, shape: "arrowDown" as const, text: "VOL" });
-    createSeriesMarkers(price, markers.sort((x, y) => x.time - y.time));
+    const markers: SeriesMarker<UTCTimestamp>[] = [];
+    if (ta && on("structure")) {
+      for (const s of ta.swings.slice(el.clientWidth < 600 ? -8 : -14)) {
+        if (s.label === "H" || s.label === "L") continue;
+        const bull = s.label === "HH" || s.label === "HL";
+        markers.push({ time: s.t as UTCTimestamp, position: s.kind === "high" ? "aboveBar" : "belowBar", color: bull ? UP : DOWN, shape: "circle", size: 0.3, text: s.label });
+      }
+      for (const w of ta.sweeps)
+        markers.push({ time: w.t as UTCTimestamp, position: w.dir === "high" ? "aboveBar" : "belowBar", color: "#f3d9a4", shape: w.dir === "high" ? "arrowDown" : "arrowUp", text: "Sweep" });
+    } else {
+      markers.push({ time: a.hi.t as UTCTimestamp, position: "aboveBar", color: UP, shape: "arrowDown", text: "HIGH" });
+      markers.push({ time: a.lo.t as UTCTimestamp, position: "belowBar", color: DOWN, shape: "arrowUp", text: "LOW" });
+    }
+    createSeriesMarkers(price, markers.sort((x, y) => (x.time as number) - (y.time as number)));
 
+    if (showRsi && ta) {
+      const r = chart.addSeries(LineSeries, { color: "#b388ff", lineWidth: 1, lastValueVisible: true, priceLineVisible: false, crosshairMarkerVisible: false, priceFormat: { type: "price", precision: 0, minMove: 1 } }, 1);
+      r.setData(candles.map((c, i) => (ta.rsi[i] == null ? { time: c.t as UTCTimestamp } : { time: c.t as UTCTimestamp, value: ta.rsi[i] as number })));
+      r.createPriceLine({ price: 70, color: "rgba(255,77,94,0.5)", lineStyle: LineStyle.Dotted, lineWidth: 1, axisLabelVisible: false, title: "" });
+      r.createPriceLine({ price: 30, color: "rgba(62,230,160,0.5)", lineStyle: LineStyle.Dotted, lineWidth: 1, axisLabelVisible: false, title: "" });
+      chart.panes()[1]?.setHeight(80);
+    }
+
+    // ---- overlay: zones, BOS/CHoCH, fib, volume profile ----
+    const cv = overlay.current!;
+    let alive = true;
+    const draw = () => {
+      if (!ta || !alive) return;
+      const dpr = window.devicePixelRatio || 1;
+      const W = el.clientWidth, H = chart.paneSize(0).height;
+      const plotW = chart.timeScale().width();
+      cv.style.width = `${W}px`;
+      cv.style.height = `${H}px`;
+      cv.width = W * dpr;
+      cv.height = H * dpr;
+      const g = cv.getContext("2d")!;
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, W, H);
+      g.save();
+      g.beginPath();
+      g.rect(0, 0, plotW, H);
+      g.clip();
+      const y = (p: number) => price.priceToCoordinate(p);
+      const x = (t: number) => chart.timeScale().timeToCoordinate(t as UTCTimestamp);
+      g.font = "600 10px system-ui, sans-serif";
+
+      if (on("levels")) {
+        const names = new Map<Zone, string>();
+        ta.read.resistance.forEach((z, i) => names.set(z, `R${i + 1}`));
+        ta.read.support.forEach((z, i) => names.set(z, `S${i + 1}`));
+        let lastLabelY = -99;
+        for (const z of [...ta.zones].sort((p, q) => q.mid - p.mid)) {
+          const y1 = y(z.to), y2 = y(z.from);
+          if (y1 == null || y2 == null) continue;
+          const sup = z.kind === "support";
+          g.fillStyle = sup ? "rgba(62,230,160,0.08)" : "rgba(255,77,94,0.08)";
+          g.fillRect(0, y1, plotW, Math.max(2, y2 - y1));
+          g.strokeStyle = sup ? "rgba(62,230,160,0.35)" : "rgba(255,77,94,0.35)";
+          g.lineWidth = 1;
+          g.strokeRect(-1, y1, plotW + 2, Math.max(2, y2 - y1));
+          g.fillStyle = sup ? "rgba(62,230,160,0.9)" : "rgba(255,77,94,0.9)";
+          const ly = Math.max(y1 - 3, lastLabelY + 12);
+          g.fillText(`${names.get(z) ?? ""} ${sup ? "Support" : "Resistance"} ×${z.touches}`, 6, ly);
+          lastLabelY = ly;
+        }
+      }
+
+      if (on("fib") && ta.fib) {
+        const f = ta.fib;
+        const x0 = x(f.tFrom) ?? 0;
+        const gp = f.levels.filter((l) => l.r === 0.5 || l.r === 0.618);
+        const ga = y(gp[0].price), gb = y(gp[1].price);
+        if (ga != null && gb != null) {
+          g.fillStyle = "rgba(199,146,234,0.12)";
+          g.fillRect(x0, Math.min(ga, gb), plotW - x0, Math.abs(gb - ga));
+        }
+        for (const l of f.levels) {
+          const yy = y(l.price);
+          if (yy == null) continue;
+          g.strokeStyle = "rgba(199,146,234,0.55)";
+          g.setLineDash([2, 3]);
+          g.beginPath(); g.moveTo(x0, yy); g.lineTo(plotW, yy); g.stroke();
+          g.setLineDash([]);
+          g.fillStyle = "rgba(199,146,234,0.95)";
+          const fl = l.r === 0.618 ? "0.618 golden" : `${l.r}`;
+          g.fillText(fl, plotW - Math.min(90, plotW * 0.22) - g.measureText(fl).width - 6, yy - 2);
+        }
+      }
+
+      if (on("structure")) {
+        for (const b of ta.breaks) {
+          const x1 = x(b.tFrom), x2 = x(b.tTo), yy = y(b.price);
+          if (x1 == null || x2 == null || yy == null) continue;
+          const col = b.dir === "up" ? UP : DOWN;
+          g.strokeStyle = col;
+          g.lineWidth = 1;
+          g.setLineDash(b.kind === "CHoCH" ? [4, 3] : []);
+          g.beginPath(); g.moveTo(x1, yy); g.lineTo(x2, yy); g.stroke();
+          g.setLineDash([]);
+          g.fillStyle = col;
+          const label = b.kind;
+          const tw = g.measureText(label).width;
+          g.fillText(label, (x1 + x2) / 2 - tw / 2, b.dir === "up" ? yy - 4 : yy + 11);
+        }
+      }
+      g.restore();
+
+      if (on("profile")) {
+        const vp = ta.profile;
+        const maxB = Math.max(...vp.bins);
+        const PW = Math.min(90, plotW * 0.22);
+        for (let i = 0; i < vp.bins.length; i++) {
+          const lo = vp.lo + i * vp.step, hi = lo + vp.step;
+          const y1 = y(hi), y2 = y(lo);
+          if (y1 == null || y2 == null) continue;
+          const w = (vp.bins[i] / maxB) * PW;
+          const inVA = lo >= vp.val - 1e-18 && hi <= vp.vah + 1e-18;
+          const isPoc = vp.poc >= lo && vp.poc < hi;
+          g.fillStyle = isPoc ? "rgba(255,184,77,0.75)" : inVA ? "rgba(255,184,77,0.32)" : "rgba(255,255,255,0.12)";
+          g.fillRect(plotW - w, y1 + 0.5, w, Math.max(1, y2 - y1 - 1));
+        }
+      }
+    };
+    const redraw = () => requestAnimationFrame(draw);
+    chart.timeScale().subscribeVisibleLogicalRangeChange(redraw);
+    chart.subscribeCrosshairMove(redraw);
     chart.timeScale().fitContent();
-    const ro = new ResizeObserver(() => chart.applyOptions({ width: el.clientWidth }));
+    setTimeout(draw, 30);
+    const ro = new ResizeObserver(() => {
+      chart.applyOptions({ width: el.clientWidth });
+      redraw();
+    });
     ro.observe(el);
     return () => {
+      alive = false;
       ro.disconnect();
       chart.remove();
+      cv.getContext("2d")?.clearRect(0, 0, cv.width, cv.height);
     };
-  }, [candles, a, tf]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candles, a, ta, tf, layers]);
 
   const span = TFS.find((x) => x.id === tf)!.span;
 
@@ -211,17 +367,26 @@ export default function Chart({ pool, token }: { pool: string; token: string }) 
         </div>
       </div>
 
+      <div className="layers">
+        {LAYERS.map((l) => (
+          <button key={l.id} className={on(l.id) ? "on" : ""} onClick={() => toggle(l.id)} style={{ ["--c" as string]: l.color }}>
+            <i />{l.label}
+          </button>
+        ))}
+      </div>
+
       {error && <div className="alert danger">Chart: {error}</div>}
       {!error && !candles && <div className="chart-loading muted">Loading chart…</div>}
       {candles && candles.length === 0 && <div className="chart-loading muted">No candle data for this pool.</div>}
-      <div ref={box} className="chart-box" hidden={!candles || candles.length === 0} />
+      <div className="chart-wrap" hidden={!candles || candles.length === 0}>
+        <div ref={box} className="chart-box" />
+        <canvas ref={overlay} className="chart-overlay" />
+      </div>
+
+      {ta && <OrbitRead ta={ta} tf={tf} />}
 
       {a && (
         <>
-          <p className="muted small legend">
-            <span style={{ color: UP }}>━ High</span> <span style={{ color: DOWN }}>━ Low</span>{" "}
-            <span style={{ color: ZONE }}>┅ Highest-volume zone</span> <span style={{ color: ZONE }}>▮ Biggest volume candle</span>
-          </p>
           <div className="insights">
             <Insight label={`High (${span})`} value={`$${fmtPrice(a.hi.h)}`} sub={`${when(a.hi.t)} · now ${pct(a.fromHi)}`} tone="up" />
             <Insight label={`Low (${span})`} value={`$${fmtPrice(a.lo.l)}`} sub={`${when(a.lo.t)} · now ${pct(a.fromLo)}`} tone="down" />
@@ -238,17 +403,64 @@ export default function Chart({ pool, token }: { pool: string; token: string }) 
               tone="zone"
             />
             <Insight label={`Change (${span})`} value={pct(a.change)} sub={`Price now $${fmtPrice(a.last)}`} tone={a.change >= 0 ? "up" : "down"} />
-            <Insight
-              label={`Volume (${span})`}
-              value={usd(a.total)}
-              sub={`${a.ups} up candles · ${a.downs} down`}
-            />
+            <Insight label={`Volume (${span})`} value={usd(a.total)} sub={`${a.ups} up candles · ${a.downs} down`} />
           </div>
           <RangeBar lo={a.lo.l} hi={a.hi.h} now={a.last} zone={a.zone} />
         </>
       )}
-      <p className="muted small">Candle data: GeckoTerminal</p>
+      <p className="muted small">Candle data: GeckoTerminal · Analysis is automatic and educational — not financial advice.</p>
     </section>
+  );
+}
+
+/** Daily read: bias, key levels, reasons and what to watch */
+function OrbitRead({ ta, tf }: { ta: Analysis; tf: string }) {
+  const r = ta.read;
+  const tone = r.bias === "Bullish" ? "up" : r.bias === "Bearish" ? "down" : "flat";
+  const dist = (p: number) => pct((p / ta.last - 1) * 100);
+  const rows: { k: string; p: number; tone: string; note?: string }[] = [
+    ...r.resistance.slice().reverse().map((z, i, arr) => ({ k: `R${arr.length - i}`, p: z.mid, tone: "down", note: `${z.touches} touches` })),
+    { k: "Now", p: ta.last, tone: "now" },
+    ...r.support.map((z, i) => ({ k: `S${i + 1}`, p: z.mid, tone: "up", note: `${z.touches} touches` })),
+  ];
+  return (
+    <div className={`read ${tone}`}>
+      <div className="read-head">
+        <div>
+          <span className="label">ORBIT read · {tf}</span>
+          <div className="read-bias">{r.bias}</div>
+        </div>
+        <div className="read-meter" title={`Score ${r.score}`}>
+          <div className="read-meter-track"><span style={{ left: `${(r.score + 100) / 2}%` }} /></div>
+          <div className="read-meter-ends small"><span>Bearish</span><span>{r.score > 0 ? "+" : ""}{r.score}</span><span>Bullish</span></div>
+        </div>
+      </div>
+      <div className="read-grid">
+        <div>
+          <span className="label">Key levels</span>
+          <ul className="levels">
+            {rows.map((row) => (
+              <li key={row.k} className={row.tone}>
+                <b>{row.k}</b>
+                <span>${fmtPrice(row.p)}</span>
+                <em>{row.tone === "now" ? (r.rsi != null ? `RSI ${r.rsi.toFixed(0)}` : "") : dist(row.p)}</em>
+              </li>
+            ))}
+            <li className="zone"><b>POC</b><span>${fmtPrice(ta.profile.poc)}</span><em>{dist(ta.profile.poc)}</em></li>
+            <li className="zone"><b>Value</b><span>${fmtPrice(ta.profile.val)} – ${fmtPrice(ta.profile.vah)}</span><em>70% vol</em></li>
+            {r.invalidation != null && (
+              <li className="warn"><b>Invalid</b><span>${fmtPrice(r.invalidation)}</span><em>{dist(r.invalidation)}</em></li>
+            )}
+          </ul>
+        </div>
+        <div>
+          <span className="label">Why</span>
+          <ul className="why">{r.reasons.map((x) => <li key={x}>{x}</li>)}</ul>
+          <span className="label">What to watch</span>
+          <ul className="why watch">{r.plan.map((x) => <li key={x}>{x}</li>)}</ul>
+        </div>
+      </div>
+    </div>
   );
 }
 
