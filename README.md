@@ -51,7 +51,13 @@ Bayaran melalui QR / butang wallet (Solana Pay) tak perlu apa-apa setup: browser
 Kod akses deterministik (bayaran sama = kod sama) dan hanya bayaran lebih baru boleh sambung tempoh, jadi tak boleh "replay".
 Paste TxID (bayar terus dari exchange) hanya hidup bila Upstash Redis disambung.
 
-### Pilihan: Upstash Redis (untuk paste TxID)
+### Upstash Redis (free trial 7 hari, tawaran $10 & paste TxID)
+
+Dah disambung (`upstash-kv-amber-envelope`). Tanpa database ni, butang free trial disembunyikan.
+Trial: 1 setiap wallet (tandatangan), 1 setiap peranti, maks 3 sebulan setiap rangkaian, wallet mesti ada ≥3 transaksi.
+Lepas trial tamat: Pro $10 bulan pertama dalam 48 jam (sekali setiap wallet).
+
+Plan & harga: Pro $23/bulan · $230/tahun, Ultra $59/bulan · $590/tahun (`lib/pay.ts` → `plans()`).
 
 1. **Storage → Create Database → Upstash (Redis)** → sambung ke projek `orbit`. Ini isi `KV_REST_API_URL` & `KV_REST_API_TOKEN`.
 2. Pilihan — **Settings → Environment Variables**: `PRICE_USDC`, `ORBIT_SECRET`, `PAY_WALLET` (lalai: `ADukwrnGbjfBPY9CSErNuog1LBibbkdnd9kpnbH5fjeY`).
