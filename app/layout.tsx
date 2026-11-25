@@ -10,11 +10,11 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "ORBIT", statusBarStyle: "black-translucent" },
   icons: { icon: "/icon-192.png", apple: "/apple-icon.png" },
   formatDetection: { telephone: false },
-  metadataBase: new URL("https://orbitonsol.com"),
+  metadataBase: new URL("https://www.orbitonsol.com"),
   openGraph: {
     title: "ORBIT — Solana coin intelligence",
     description: "New pairs · risk score · wallet tracing · demo trading",
-    url: "https://orbitonsol.com",
+    url: "https://www.orbitonsol.com",
     siteName: "ORBIT",
     images: [{ url: "/og.png", width: 1200, height: 630, alt: "ORBIT — Solana coin intelligence" }],
     type: "website",
