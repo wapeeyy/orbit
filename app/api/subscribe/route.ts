@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { keyFrom, signKey, verifyKey } from "@/lib/auth";
-import { kvConfigured, setOnce } from "@/lib/kv";
+import { keyFrom, readSignedKey, signKey, verifyKey } from "@/lib/auth";
+import { kvConfigured, kvGet, setOnce } from "@/lib/kv";
+import { PROMO_HOURS } from "@/lib/trial";
 import { DAYS, findByReference, isPlan, payConfig, plans, refFromSecret, solUsd, USDC_MINT, verifyPayment, type Payment, type PlanId } from "@/lib/pay";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +29,8 @@ export async function GET(req: Request) {
       usdcMint: USDC_MINT,
       days: DAYS,
       plans: plans(),
-      active: key ? { exp: key.exp, tier: key.tier ?? "pro" } : null,
+      active: key ? { exp: key.exp, tier: key.tier ?? "pro", trial: !!key.trial } : null,
+      trials: kvConfigured(),
     },
     { headers: nocache },
   );
@@ -56,7 +58,7 @@ function issue(req: Request, pay: Payment, signature: string) {
 /** Claim: { secret } (Solana Pay QR / wallet button) or { signature } (needs the database). */
 export async function POST(req: Request) {
   const fail = (error: string, status = 400) => NextResponse.json({ error }, { status, headers: nocache });
-  let body: { secret?: string; signature?: string; plan?: string };
+  let body: { secret?: string; signature?: string; plan?: string; trial?: string };
   try {
     body = await req.json();
   } catch {
@@ -64,6 +66,20 @@ export async function POST(req: Request) {
   }
 
   const plan: PlanId = isPlan(body.plan) ? body.plan : "pro-month";
+  // $10 first month: only for a finished trial, within 48 h of its end, once per wallet
+  let promoWallet: string | null = null;
+  if (plan === "pro-promo") {
+    const t = readSignedKey(body.trial);
+    if (!t?.trial || !t.w) return fail("This offer is only for people who finished the free trial.", 403);
+    if (Date.now() > t.exp + PROMO_HOURS * 3_600_000) return fail("This offer has ended. Pro is $23 / month.", 403);
+    promoWallet = t.w;
+  }
+  const promoOnce = async (signature: string) => {
+    if (!promoWallet) return true;
+    if (!kvConfigured()) return false;
+    if (await setOnce(`promo:${promoWallet}`, signature, 400 * 86400)) return true;
+    return (await kvGet(`promo:${promoWallet}`)) === signature; // the same payment claimed again
+  };
   try {
     if (body.secret) {
       if (!/^[1-9A-HJ-NP-Za-km-z]{32,64}$/.test(body.secret)) return fail("Invalid payment session");
@@ -71,6 +87,7 @@ export async function POST(req: Request) {
       if (!signature) return NextResponse.json({ pending: true }, { headers: nocache });
       const pay = await verifyPayment(signature, plan);
       if (Date.now() - pay.at > pay.days * 86_400_000) return fail("This payment has already expired");
+      if (!(await promoOnce(signature))) return fail("The trial offer was already used for this wallet.", 409);
       return NextResponse.json(issue(req, pay, signature), { headers: nocache });
     }
 
@@ -83,6 +100,7 @@ export async function POST(req: Request) {
     // A pasted TxID is public, so each one can only be claimed once
     const first = await setOnce(`used:${signature}`, JSON.stringify({ payer: pay.payer, at: Date.now() }), 400 * 86400);
     if (!first) return fail("This transaction has already been used. If this was your payment, re-enter your access code.", 409);
+    if (!(await promoOnce(signature))) return fail("The trial offer was already used for this wallet.", 409);
     return NextResponse.json(issue(req, pay, signature), { headers: nocache });
   } catch (e) {
     return fail((e as Error).message, 400);

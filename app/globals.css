@@ -613,3 +613,15 @@ footer { font-family: var(--narrow); letter-spacing: 0.16em; text-transform: upp
   .mtf-grid > .mtf-h:nth-child(5), .mtf-grid > .mtf-h:nth-child(6), .mtf-cells > :nth-child(5), .mtf-cells > :nth-child(6) { display: none; }
 }
 .pay-plan { margin: -4px 0 12px; color: var(--gold); font-size: 13px; letter-spacing: 0.04em; }
+
+/* free trial */
+.trial-card { border-color: rgba(255,255,255,0.35); background: radial-gradient(ellipse at top right, rgba(140,120,255,0.14), rgba(0,0,0,0.65) 60%); margin-bottom: 16px; }
+.trial-card.offer { border-color: rgba(243,217,164,0.55); background: radial-gradient(ellipse at top right, rgba(243,217,164,0.14), rgba(0,0,0,0.65) 60%); }
+.trial-card h3 { margin: 6px 0 8px; }
+.trial-card .tier-btn { margin-top: 10px; }
+.trial-eyebrow { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); }
+.trial-wallets { display: grid; gap: 8px; margin-top: 10px; }
+.trial-banner { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin: 0 0 12px; padding: 9px 14px; border: 1px solid rgba(255,255,255,0.25); border-radius: 10px; background: rgba(0,0,0,0.6); font-size: 13px; cursor: pointer; }
+.trial-banner.offer { border-color: rgba(243,217,164,0.6); color: var(--gold); }
+.trial-cta { white-space: nowrap; letter-spacing: 0.1em; font-size: 11px; text-transform: uppercase; }
+.tier-price s.was { font-size: 18px; color: var(--faint); margin-left: 6px; }

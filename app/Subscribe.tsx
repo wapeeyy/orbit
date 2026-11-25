@@ -7,6 +7,9 @@ import { CopyButton } from "./Copy";
 import { api, getKey, keyExpiry, onKeyChange, setKey } from "./key";
 import { ADMIN_WA_DISPLAY, adminWa } from "./contact";
 import PlanCards from "./PlanCards";
+import { TrialCard, useTrial } from "./Trial";
+import { trialKey } from "./trial";
+import { PROMO_USD } from "@/lib/trial";
 import type { Billing, Tier } from "./plans";
 
 type Config = {
@@ -20,7 +23,8 @@ type Config = {
   days: number;
   solUsd: number | null;
   plans?: Record<string, { tier: "pro" | "ultra"; usd: number; days: number; yearly: boolean }>;
-  active: { exp: number; tier?: "pro" | "ultra" } | null;
+  active: { exp: number; tier?: "pro" | "ultra"; trial?: boolean } | null;
+  trials?: boolean;
 };
 
 const date = (t: number) => new Date(t).toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" });
@@ -58,10 +62,21 @@ export default function Subscribe() {
   const active = !!exp && exp > Date.now();
   const tier: Tier = active ? (cfg?.active?.tier ?? "pro") : "free";
   const tierName = tier === "ultra" ? "Ultra" : "Pro";
+  const trial = useTrial();
+  const promo = !active && trial.s === "offer";
 
   return (
     <section>
+      {promo && (
+        <div className="card trial-card offer">
+          <span className="trial-eyebrow">Your free trial has ended</span>
+          <h3>Keep Pro for ${PROMO_USD} — first month</h3>
+          <p className="small muted">Normally $23. This offer is for the next 48 hours only, once per wallet. Pay below.</p>
+        </div>
+      )}
+      {!active && cfg?.trials && trial.s === "none" && <TrialCard onStarted={load} />}
       <PlanCards
+        promo={promo}
         current={tier}
         onPick={(t, b) => {
           setPick({ tier: t, billing: b });
@@ -104,7 +119,7 @@ export default function Subscribe() {
       )}
 
       {cfg?.ready && cfg.wallet && (!active || renew) && (
-        <PayBox cfg={cfg} plan={`${pick.tier === "ultra" ? "ultra" : "pro"}-${pick.billing}`} onPaid={(k) => { setKey(k); setRenew(false); load(); }} />
+        <PayBox cfg={cfg} plan={promo && pick.tier !== "ultra" && pick.billing === "month" ? "pro-promo" : `${pick.tier === "ultra" ? "ultra" : "pro"}-${pick.billing}`} onPaid={(k) => { setKey(k); setRenew(false); load(); }} />
       )}
 
       {!active && <RestoreKey onDone={load} />}
@@ -147,7 +162,7 @@ async function refFromSecret(secret: string) {
 
 function PayBox({ cfg, plan, onPaid }: { cfg: Config; plan: string; onPaid: (key: string) => void }) {
   const p = cfg.plans?.[plan] ?? { tier: "pro" as const, usd: cfg.priceUsdc, days: cfg.days, yearly: false };
-  const planName = `ORBIT ${p.tier === "ultra" ? "Ultra" : "Pro"} · ${p.yearly ? "1 year" : `${p.days} days`}`;
+  const planName = `ORBIT ${p.tier === "ultra" ? "Ultra" : "Pro"} · ${plan === "pro-promo" ? "first month offer" : p.yearly ? "1 year" : `${p.days} days`}`;
   const solAmount = cfg.solUsd ? Math.ceil((p.usd / cfg.solUsd) * 10_000) / 10_000 : null;
   const [token, setToken] = useState<"USDC" | "SOL">("USDC");
   const [qr, setQr] = useState<string | null>(null);
@@ -196,7 +211,7 @@ function PayBox({ cfg, plan, onPaid }: { cfg: Config; plan: string; onPaid: (key
     const tick = async () => {
       if (dead || Date.now() - started > 30 * 60_000) return;
       try {
-        const { ok, j } = await claim({ secret, plan });
+        const { ok, j } = await claim({ secret, plan, trial: plan === "pro-promo" ? trialKey() : undefined });
         if (dead) return;
         if (ok && j.key) return done(j.key);
         if (!ok && !j.pending) setStatus(j.error);
@@ -215,7 +230,7 @@ function PayBox({ cfg, plan, onPaid }: { cfg: Config; plan: string; onPaid: (key
     setBusy(true);
     setStatus("Checking transaction…");
     try {
-      const { ok, j } = await claim({ signature: sig.trim(), plan });
+      const { ok, j } = await claim({ signature: sig.trim(), plan, trial: plan === "pro-promo" ? trialKey() : undefined });
       if (ok && j.key) done(j.key);
       else setStatus(j.error ?? "Couldn't verify");
     } finally {
@@ -305,7 +320,7 @@ function PayBox({ cfg, plan, onPaid }: { cfg: Config; plan: string; onPaid: (key
         </a>
       )}
       <p className="muted small">
-        {p.yearly ? "Yearly plan: 12 months of access." : "Pay more = longer access (e.g. 2× the price = 60 days, up to 12 months)."} Switching from Pro to Ultra
+        {plan === "pro-promo" ? "One month of Pro at the trial price." : p.yearly ? "Yearly plan: 12 months of access." : "Pay more = longer access (e.g. 2× the price = 60 days, up to 12 months)."} Switching from Pro to Ultra
         starts a new Ultra code from the day you pay.
       </p>
     </div>

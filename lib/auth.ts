@@ -13,7 +13,7 @@ function same(a: string, b: string) {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
-export type KeyPayload = { exp: number; id: string; t?: number; tier?: "pro" | "ultra" }; // exp & t (masa transaksi terakhir) dalam ms
+export type KeyPayload = { exp: number; id: string; t?: number; tier?: "pro" | "ultra"; trial?: boolean; w?: string }; // exp & t (masa transaksi terakhir) dalam ms
 
 /** Kod akses langganan: payload.tandatangan */
 export function signKey(p: KeyPayload) {
@@ -46,6 +46,19 @@ export function verifyKey(key: string | null | undefined): KeyPayload | null {
     if (!same(sig, mac("key:" + body))) return null;
     const p = JSON.parse(Buffer.from(body, "base64url").toString()) as KeyPayload;
     return p.exp > Date.now() ? p : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Signature check only — also accepts expired codes (used for the after-trial offer) */
+export function readSignedKey(key: string | null | undefined): KeyPayload | null {
+  if (!key) return null;
+  const [body, sig] = key.trim().split(".");
+  if (!body || !sig) return null;
+  try {
+    if (!same(sig, mac("key:" + body))) return null;
+    return JSON.parse(Buffer.from(body, "base64url").toString()) as KeyPayload;
   } catch {
     return null;
   }

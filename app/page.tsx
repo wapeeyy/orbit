@@ -12,6 +12,7 @@ import Wallet from "./Wallet";
 import Demo, { DemoTrade } from "./Demo";
 import ProLock, { usePro } from "./ProLock";
 import AlertWatcher from "./AlertWatcher";
+import { TrialBanner } from "./Trial";
 import { Galaxy, Icon } from "./Cosmos";
 import type { TokenInfo } from "@/lib/info";
 import type { TokenExtra } from "@/lib/report";
@@ -79,6 +80,11 @@ export default function Home() {
   // Link aktivasi: /?kod=KOD_AKSES → simpan kod, buang dari URL, buka tab Langgan
   useEffect(() => {
     const url = new URL(window.location.href);
+    if (url.searchParams.get("tab") === "sub") {
+      setTab("sub");
+      url.searchParams.delete("tab");
+      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+    }
     const kod = url.searchParams.get("kod")?.trim();
     if (!kod) return;
     url.searchParams.delete("kod");
@@ -105,6 +111,7 @@ export default function Home() {
         <p className="brand-sub">Find Solana coins worth a look, or paste a CA to check price, liquidity & who holds the supply.</p>
       </header>
 
+      <TrialBanner onSubscribe={goSub} />
       <nav className="tabs">
         {(
           [

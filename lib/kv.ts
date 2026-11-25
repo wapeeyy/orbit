@@ -25,3 +25,14 @@ async function cmd<T>(...args: (string | number)[]): Promise<T> {
 export async function setOnce(key: string, value: string, ttlSec: number) {
   return (await cmd<string | null>("SET", key, value, "NX", "EX", ttlSec)) === "OK";
 }
+
+export async function kvGet(key: string) {
+  return cmd<string | null>("GET", key);
+}
+
+/** Count up a key that expires after ttlSec (the window starts on the first hit). */
+export async function kvIncr(key: string, ttlSec: number) {
+  const n = await cmd<number>("INCR", key);
+  if (n === 1) await cmd("EXPIRE", key, ttlSec);
+  return n;
+}
