@@ -33,3 +33,27 @@ export async function readEvents(n = 1000) {
     totals: { trials: Number(trials ?? 0), payments: Number(payments ?? 0), revenue: Number(revenue ?? 0) },
   };
 }
+
+const hashToObj = (h: unknown): Record<string, number> => {
+  const out: Record<string, number> = {};
+  if (Array.isArray(h)) for (let i = 0; i < h.length; i += 2) out[String(h[i])] = Number(h[i + 1]);
+  else if (h && typeof h === "object") for (const [k, v] of Object.entries(h)) out[k] = Number(v);
+  return out;
+};
+
+/** Visitors per day for the last `days` days (from /api/hit) */
+export async function readTraffic(days = 30) {
+  const list = Array.from({ length: days }, (_, i) => new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10));
+  const cmds: (string | number)[][] = [];
+  for (const d of list) cmds.push(["PFCOUNT", `uv:${d}`], ["GET", `pv:${d}`], ["HGETALL", `cc:${d}`], ["HGETALL", `src:${d}`]);
+  cmds.push(["PFCOUNT", ...list.slice(0, 7).map((d) => `uv:${d}`)], ["PFCOUNT", ...list.map((d) => `uv:${d}`)]);
+  const r = await kvPipeline(cmds);
+  const perDay = list.map((day, i) => ({
+    day,
+    visitors: Number(r[i * 4] ?? 0),
+    views: Number(r[i * 4 + 1] ?? 0),
+    countries: hashToObj(r[i * 4 + 2]),
+    sources: hashToObj(r[i * 4 + 3]),
+  }));
+  return { perDay, unique7: Number(r[days * 4] ?? 0), unique30: Number(r[days * 4 + 1] ?? 0) };
+}

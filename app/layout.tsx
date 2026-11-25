@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Pwa from "./Pwa";
 import { Starfield } from "./Cosmos";
-import { Analytics } from "@vercel/analytics/next";
+import Hit from "./Hit";
 
 export const metadata: Metadata = {
   title: "ORBIT — Solana coin scanner",
@@ -45,7 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Starfield />
         {children}
         <Pwa />
-              <Analytics />
+              <Hit />
       </body>
     </html>
   );

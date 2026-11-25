@@ -6,7 +6,18 @@ import { api } from "../key";
 type Ev =
   | { type: "trial"; at: number; wallet: string; country: string }
   | { type: "payment"; at: number; plan: string; tier: "pro" | "ultra"; usd: number; days: number; payer: string; tx: string; country: string };
-type Data = { events: Ev[]; totals: { trials: number; payments: number; revenue: number } };
+type Day = { day: string; visitors: number; views: number; countries: Record<string, number>; sources: Record<string, number> };
+type Data = {
+  events: Ev[];
+  totals: { trials: number; payments: number; revenue: number };
+  traffic?: { perDay: Day[]; unique7: number; unique30: number };
+};
+
+const sum = (days: Day[], k: "countries" | "sources") => {
+  const m = new Map<string, number>();
+  days.forEach((d) => Object.entries(d[k]).forEach(([x, n]) => m.set(x, (m.get(x) ?? 0) + n)));
+  return [...m.entries()].sort((a, b) => b[1] - a[1]);
+};
 
 const DAY = 86_400_000;
 const when = (t: number) => new Date(t).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -71,6 +82,8 @@ export default function Admin() {
       )}
       {d && stats && (
         <>
+          {d.traffic && <Traffic t={d.traffic} />}
+          <h2 className="admin-h2">Sign-ups & payments</h2>
           <div className="admin-grid">
             <Stat k="Trials today" v={stats.trialsToday} />
             <Stat k="Trials · 7 days" v={stats.trials7} />
@@ -113,11 +126,64 @@ export default function Admin() {
             </div>
           )}
           <p className="muted small" style={{ marginTop: 16 }}>
-            Visitors & pages: Vercel → orbit → Analytics. Records start from when this page went live; earlier payments are in your wallet history.
+            Records start from when this page went live; earlier payments are in your wallet history. Tip: share links with ?src=name (e.g.
+            orbitonsol.com/?src=kol-ali) to see which ad or influencer brings visitors.
           </p>
         </>
       )}
     </main>
+  );
+}
+
+function Traffic({ t }: { t: NonNullable<Data["traffic"]> }) {
+  const days = t.perDay;
+  const today = days[0];
+  const last14 = [...days.slice(0, 14)].reverse();
+  const max = Math.max(1, ...last14.map((d) => d.visitors));
+  const views30 = days.reduce((s, d) => s + d.views, 0);
+  const src = sum(days.slice(0, 30), "sources").slice(0, 8);
+  const cc = sum(days.slice(0, 30), "countries").slice(0, 10);
+  const total = src.reduce((s, [, n]) => s + n, 0) || 1;
+  return (
+    <>
+      <h2 className="admin-h2">Visitors</h2>
+      <div className="admin-grid">
+        <Stat k="Visitors today" v={today?.visitors ?? 0} />
+        <Stat k="Visitors · 7 days" v={t.unique7} />
+        <Stat k="Visitors · 30 days" v={t.unique30} />
+        <Stat k="Visits · 30 days" v={views30} />
+      </div>
+      <div className="admin-bars" title="Unique visitors per day, last 14 days">
+        {last14.map((d) => (
+          <div key={d.day} className="admin-bar">
+            <i style={{ height: `${(d.visitors / max) * 100}%` }} />
+            <span>{d.visitors}</span>
+            <em>{d.day.slice(8)}</em>
+          </div>
+        ))}
+      </div>
+      <div className="admin-split">
+        <div>
+          <span className="label">Where they come from · 30 days</span>
+          {src.length === 0 && <p className="muted small">No visits yet.</p>}
+          {src.map(([k, n]) => (
+            <div key={k} className="admin-src">
+              <span>{k}</span>
+              <i style={{ width: `${(n / total) * 100}%` }} />
+              <b>{n}</b>
+            </div>
+          ))}
+        </div>
+        <div>
+          <span className="label">Countries · 30 days</span>
+          <div className="admin-countries">
+            {cc.map(([k, n]) => (
+              <span key={k} className="chip">{flag(k)} {k} · {n}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
 
