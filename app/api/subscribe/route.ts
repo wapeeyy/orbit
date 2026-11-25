@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { keyFrom, readSignedKey, signKey, verifyKey } from "@/lib/auth";
 import { kvConfigured, kvGet, setOnce } from "@/lib/kv";
 import { PROMO_HOURS } from "@/lib/trial";
+import { countryOf, logEvent } from "@/lib/events";
 import { DAYS, findByReference, isPlan, payConfig, plans, refFromSecret, solUsd, USDC_MINT, verifyPayment, type Payment, type PlanId } from "@/lib/pay";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +56,14 @@ function issue(req: Request, pay: Payment, signature: string) {
   return { key, exp, days: pay.days, usd: pay.usd, tier: pay.tier };
 }
 
+/** Issue the code and record the payment once (a repeat claim of the same payment is not logged again) */
+async function issueAndLog(req: Request, pay: Payment, signature: string, plan: PlanId) {
+  const out = issue(req, pay, signature);
+  if (out.days > 0 && kvConfigured() && (await setOnce(`logged:${signature}`, "1", 400 * 86400)))
+    await logEvent({ type: "payment", at: pay.at, plan, tier: pay.tier, usd: Math.round(pay.usd * 100) / 100, days: pay.days, payer: pay.payer, tx: signature, country: countryOf(req) });
+  return out;
+}
+
 /** Claim: { secret } (Solana Pay QR / wallet button) or { signature } (needs the database). */
 export async function POST(req: Request) {
   const fail = (error: string, status = 400) => NextResponse.json({ error }, { status, headers: nocache });
@@ -88,7 +97,7 @@ export async function POST(req: Request) {
       const pay = await verifyPayment(signature, plan);
       if (Date.now() - pay.at > pay.days * 86_400_000) return fail("This payment has already expired");
       if (!(await promoOnce(signature))) return fail("The trial offer was already used for this wallet.", 409);
-      return NextResponse.json(issue(req, pay, signature), { headers: nocache });
+      return NextResponse.json(await issueAndLog(req, pay, signature, plan), { headers: nocache });
     }
 
     const signature = body.signature?.trim() ?? "";
@@ -101,7 +110,7 @@ export async function POST(req: Request) {
     const first = await setOnce(`used:${signature}`, JSON.stringify({ payer: pay.payer, at: Date.now() }), 400 * 86400);
     if (!first) return fail("This transaction has already been used. If this was your payment, re-enter your access code.", 409);
     if (!(await promoOnce(signature))) return fail("The trial offer was already used for this wallet.", 409);
-    return NextResponse.json(issue(req, pay, signature), { headers: nocache });
+    return NextResponse.json(await issueAndLog(req, pay, signature, plan), { headers: nocache });
   } catch (e) {
     return fail((e as Error).message, 400);
   }

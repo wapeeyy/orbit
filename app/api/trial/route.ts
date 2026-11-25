@@ -5,6 +5,7 @@ import { signKey } from "@/lib/auth";
 import { rpc } from "@/lib/holders";
 import { kvConfigured, kvGet, kvIncr, setOnce } from "@/lib/kv";
 import { TRIAL_DAYS, trialMessage } from "@/lib/trial";
+import { countryOf, logEvent } from "@/lib/events";
 
 export const dynamic = "force-dynamic";
 const nocache = { "cache-control": "no-store" };
@@ -67,5 +68,6 @@ export async function POST(req: Request) {
   if (device) await setOnce(`trial:d:${device}`, wallet, 400 * 86400);
 
   const key = signKey({ exp, id: `trial-${wallet.slice(0, 8)}`, t: now, tier: "pro", trial: true, w: wallet });
+  await logEvent({ type: "trial", at: now, wallet, country: countryOf(req) });
   return NextResponse.json({ key, exp }, { headers: nocache });
 }

@@ -36,3 +36,17 @@ export async function kvIncr(key: string, ttlSec: number) {
   if (n === 1) await cmd("EXPIRE", key, ttlSec);
   return n;
 }
+
+/** Run several commands in one request */
+export async function kvPipeline(cmds: (string | number)[][]) {
+  const c = cfg();
+  if (!c) throw new Error("Database (Upstash Redis) is not connected");
+  const res = await fetch(c.url + "/pipeline", {
+    method: "POST",
+    headers: { authorization: `Bearer ${c.token}`, "content-type": "application/json" },
+    body: JSON.stringify(cmds),
+    cache: "no-store",
+  });
+  const j = (await res.json()) as { result?: unknown; error?: string }[];
+  return j.map((x) => x.result);
+}
