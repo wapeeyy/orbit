@@ -15,7 +15,7 @@ import AlertWatcher from "./AlertWatcher";
 import { Galaxy, Icon } from "./Cosmos";
 import type { TokenInfo } from "@/lib/info";
 import type { TokenExtra } from "@/lib/report";
-import { api, isActive, onKeyChange, setKey } from "./key";
+import { api, isActive, onKeyChange, setKey, keyTier } from "./key";
 import { PRICE_LABEL } from "./price";
 import type { Market } from "@/lib/dex";
 import type { HolderReport } from "@/lib/holders";
@@ -175,6 +175,7 @@ function ScanView({
   onTrace: (address: string) => void;
 }) {
   const pro = usePro();
+  const ultra = pro && keyTier() === "ultra";
   const [info, setInfo] = useState<TokenInfo | null | undefined>(undefined);
   const [extra, setExtra] = useState<TokenExtra | null>(null);
   const [ca, setCa] = useState("");
@@ -304,7 +305,7 @@ function ScanView({
           <About key={"about-" + data.ca} ca={data.ca} free={free} onInfo={setInfo} />
 
           {m?.pairAddress && (
-            <Chart key={m.pairAddress} pool={m.pairAddress} token={data.ca} symbol={m.symbol} pro={pro} onSubscribe={onSubscribe} onTrace={onTrace} />
+            <Chart key={m.pairAddress} pool={m.pairAddress} token={data.ca} symbol={m.symbol} pro={pro} ultra={ultra} onSubscribe={onSubscribe} onTrace={onTrace} />
           )}
 
           <section className="card">

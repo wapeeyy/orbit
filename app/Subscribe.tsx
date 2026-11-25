@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState } from "react";
 import { CopyButton } from "./Copy";
 import { api, getKey, keyExpiry, onKeyChange, setKey } from "./key";
 import { ADMIN_WA_DISPLAY, adminWa } from "./contact";
+import PlanCards from "./PlanCards";
+import type { Billing, Tier } from "./plans";
 
 type Config = {
   ready: boolean;
@@ -26,6 +28,7 @@ export default function Subscribe() {
   const [error, setError] = useState<string | null>(null);
   const [key, setKeyState] = useState<string | null>(null);
   const [renew, setRenew] = useState(false);
+  const [pick, setPick] = useState<{ tier: Tier; billing: Billing } | null>(null);
 
   const load = () => {
     const sent = getKey();
@@ -54,28 +57,9 @@ export default function Subscribe() {
 
   return (
     <section>
-      <div className="card plan">
-        <div className="plan-head">
-          <div>
-            <span className="label">ORBIT Pro</span>
-            <div className="price">
-              ${cfg?.priceUsdc ?? 23}
-              <small> / {cfg?.days ?? 30} days</small>
-            </div>
-          </div>
-          {active && <span className="pill ok">✓ Active</span>}
-        </div>
-        <ul className="perks">
-          <li>Every coin that passes the filters (not just 3)</li>
-          <li>Near volume zone list</li>
-          <li>Scan any CA: holders, chart, narrative, owner's latest posts</li>
-          <li>Filters you can tune to your trading style</li>
-          <li>ORBIT Report: safety score, dev & insider wallets</li>
-          <li>Wallet tracing: buys/sells, PnL, win rate</li>
-          <li>Demo trading with 10 fake SOL</li>
-        </ul>
-        <p className="muted small">Pay with USDC or SOL (Solana). Access turns on automatically once the payment is confirmed.</p>
-      </div>
+      <PlanCards current={active ? "pro" : "free"} onPick={(t, b) => { setPick({ tier: t, billing: b }); setTimeout(() => document.querySelector(".paybox")?.scrollIntoView({ behavior: "smooth" }), 50); }} />
+      {pick && <p className="muted small" style={{ textAlign: "center" }}>Selected: <b>ORBIT {pick.tier === "ultra" ? "Ultra" : "Pro"}</b> · {pick.billing === "year" ? "yearly" : "monthly"}</p>}
+      <p className="muted small" style={{ textAlign: "center" }}>Pay with USDC or SOL (Solana). Access turns on automatically once the payment is confirmed.</p>
 
       {error && <div className="alert danger">{error}</div>}
 

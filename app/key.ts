@@ -39,6 +39,17 @@ export function keyExpiry(key: string | null): number | null {
   }
 }
 
+/** Plan stored in the signed code: "ultra" or (default) "pro" */
+export function keyTier(key = getKey()): "pro" | "ultra" | null {
+  if (!isActive(key)) return null;
+  try {
+    const p = JSON.parse(atob(key!.split(".")[0].replace(/-/g, "+").replace(/_/g, "/")));
+    return p.tier === "ultra" ? "ultra" : "pro";
+  } catch {
+    return "pro";
+  }
+}
+
 export function isActive(key = getKey()) {
   const exp = keyExpiry(key);
   return !!exp && exp > Date.now();

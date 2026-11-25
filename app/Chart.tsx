@@ -103,11 +103,11 @@ function analyse(cs: Candle[]) {
 }
 
 type Layer = "structure" | "levels" | "profile" | "fib" | "whales" | "ema" | "vwap" | "rsi";
-const LAYERS: { id: Layer; label: string; color: string; pro?: boolean }[] = [
+const LAYERS: { id: Layer; label: string; color: string; pro?: boolean; ultra?: boolean }[] = [
   { id: "structure", label: "Structure", color: "#f3d9a4", pro: true },
   { id: "levels", label: "S/R zones", color: "#7aa2ff", pro: true },
   { id: "profile", label: "Volume profile", color: ZONE, pro: true },
-  { id: "whales", label: "Whales", color: "#4dd0ff", pro: true },
+  { id: "whales", label: "Whales", color: "#4dd0ff", pro: true, ultra: true },
   { id: "fib", label: "Fib", color: "#c792ea", pro: true },
   { id: "ema", label: "EMA 20/50", color: "#5ad1ff" },
   { id: "vwap", label: "VWAP", color: "#ffffff" },
@@ -121,6 +121,7 @@ export default function Chart({
   token,
   symbol = "",
   pro = false,
+  ultra = false,
   onSubscribe,
   onTrace,
   fixture,
@@ -131,6 +132,7 @@ export default function Chart({
   token: string;
   symbol?: string;
   pro?: boolean;
+  ultra?: boolean;
   onSubscribe?: () => void;
   onTrace?: (wallet: string) => void;
   fixture?: Record<string, Candle[]>;
@@ -149,14 +151,14 @@ export default function Chart({
   const [vh, setVh] = useState(800);
 
   useEffect(() => {
-    if (!pro) return;
+    if (!ultra) return;
     if (whalesFixture) return setWhales(whalesFixture);
     let dead = false;
     fetchWhales(pool, token).then((w) => !dead && setWhales(w)).catch(() => !dead && setWhales([]));
     return () => {
       dead = true;
     };
-  }, [pool, token, pro, whalesFixture]);
+  }, [pool, token, ultra, whalesFixture]);
 
   // full-screen chart: real fullscreen + landscape where the browser allows it, CSS overlay otherwise (iPhone)
   async function enterFull() {
@@ -215,9 +217,13 @@ export default function Chart({
 
   const a = useMemo(() => (candles ? analyse(candles) : null), [candles]);
   const ta = useMemo(() => (candles && candles.length > 30 ? taAnalyse(candles) : null), [candles]);
-  const on = (l: Layer) => layers.has(l) && (pro || !LAYERS.find((x) => x.id === l)?.pro);
+  const allowed = (l: Layer) => {
+    const d = LAYERS.find((x) => x.id === l);
+    return d?.ultra ? ultra : d?.pro ? pro : true;
+  };
+  const on = (l: Layer) => layers.has(l) && allowed(l);
   const toggle = (l: Layer) => {
-    if (!pro && LAYERS.find((x) => x.id === l)?.pro) return onSubscribe?.();
+    if (!allowed(l)) return onSubscribe?.();
     setLayers((s) => {
       const n = new Set(s);
       if (n.has(l)) n.delete(l); else n.add(l);
@@ -459,8 +465,8 @@ export default function Chart({
 
       <div className="layers">
         {LAYERS.map((l) => (
-          <button key={l.id} className={`${on(l.id) ? "on" : ""} ${l.pro && !pro ? "locked" : ""}`} onClick={() => toggle(l.id)} style={{ ["--c" as string]: l.color }}>
-            <i />{l.label}{l.pro && !pro ? " 🔒" : ""}
+          <button key={l.id} className={`${on(l.id) ? "on" : ""} ${!allowed(l.id) ? "locked" : ""}`} onClick={() => toggle(l.id)} style={{ ["--c" as string]: l.color }}>
+            <i />{l.label}{!allowed(l.id) ? (l.ultra && pro ? " 🔒 Ultra" : " 🔒") : ""}
           </button>
         ))}
       </div>
@@ -475,8 +481,9 @@ export default function Chart({
 
       {full && <p className="muted small full-hint">Tip: turn your phone sideways for a wider chart.</p>}
       {ta && pro && <OrbitRead ta={ta} tf={tf} />}
-      {ta && pro && <AlertBox ta={ta} ca={token} symbol={symbol} />}
-      {pro && on("whales") && whales && whales.length > 0 && <WhaleList whales={whales} onTrace={onTrace} />}
+      {pro && (ultra ? <MultiRead pool={pool} token={token} fixture={fixture} /> : <UltraTeaser onSubscribe={onSubscribe} />)}
+      {ta && pro && <AlertBox ta={ta} ca={token} symbol={symbol} max={ultra ? Infinity : 5} />}
+      {ultra && on("whales") && whales && whales.length > 0 && <WhaleList whales={whales} onTrace={onTrace} />}
       {ta && !pro && (
         <div className="read locked-read" onClick={onSubscribe}>
           <span className="label">ORBIT read · {tf}</span>
@@ -566,7 +573,7 @@ function OrbitRead({ ta, tf }: { ta: Analysis; tf: string }) {
 }
 
 /** Set price alerts on the key levels (or any price) */
-function AlertBox({ ta, ca, symbol }: { ta: Analysis; ca: string; symbol: string }) {
+function AlertBox({ ta, ca, symbol, max }: { ta: Analysis; ca: string; symbol: string; max: number }) {
   const [list, setList] = useState<PriceAlert[]>([]);
   const [custom, setCustom] = useState("");
   useEffect(() => {
@@ -582,7 +589,9 @@ function AlertBox({ ta, ca, symbol }: { ta: Analysis; ca: string; symbol: string
     ...(r.invalidation != null ? [{ label: "Invalid", price: r.invalidation }] : []),
   ];
   const add = (price: number, label?: string) =>
-    addAlert({ ca, symbol: symbol || ca.slice(0, 4), price, label, dir: price >= ta.last ? "above" : "below" });
+    getAlerts().filter((a) => !a.hit).length >= max
+      ? alert(`Pro includes ${max} active alerts. Remove one, or upgrade to Ultra for unlimited alerts.`)
+      : addAlert({ ca, symbol: symbol || ca.slice(0, 4), price, label, dir: price >= ta.last ? "above" : "below" });
   return (
     <div className="alerts">
       <span className="label">🔔 Price alerts</span>
@@ -644,6 +653,89 @@ function WhaleList({ whales, onTrace }: { whales: WhaleTrade[]; onTrace?: (w: st
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+const MTF: { id: string; label: string }[] = [
+  { id: "5m", label: "5m" },
+  { id: "1h", label: "1h" },
+  { id: "4h", label: "4h" },
+  { id: "1d", label: "1D" },
+];
+
+/** Ultra: the ORBIT read for every timeframe at once */
+function MultiRead({ pool, token, fixture }: { pool: string; token: string; fixture?: Record<string, Candle[]> }) {
+  const [rows, setRows] = useState<Record<string, Analysis | null | undefined>>({});
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      for (const t of MTF) {
+        try {
+          const [frame, agg, limit] = GT[t.id];
+          const cs = fixture ? fixture[t.id] ?? [] : await fetchCandles(pool, token, frame, agg, limit);
+          if (!dead) setRows((r) => ({ ...r, [t.id]: cs.length > 30 ? taAnalyse(cs) : null }));
+        } catch {
+          if (!dead) setRows((r) => ({ ...r, [t.id]: null }));
+        }
+      }
+    })();
+    return () => {
+      dead = true;
+    };
+  }, [pool, token, fixture]);
+  const done = MTF.map((t) => rows[t.id]).filter(Boolean) as Analysis[];
+  const avg = done.length ? Math.round(done.reduce((s, a) => s + a.read.score, 0) / done.length) : 0;
+  const agree = done.length > 1 && done.every((a) => a.read.bias === done[0].read.bias);
+  return (
+    <div className="mtf">
+      <div className="mtf-head">
+        <span className="label">Multi-timeframe read · Ultra</span>
+        {done.length > 0 && (
+          <span className={`small ${avg >= 25 ? "up" : avg <= -25 ? "down" : ""}`}>
+            {agree ? `All timeframes ${done[0].read.bias.toLowerCase()}` : "Timeframes disagree"} · avg {avg > 0 ? "+" : ""}
+            {avg}
+          </span>
+        )}
+      </div>
+      <div className="mtf-grid">
+        <span className="mtf-h">TF</span>
+        <span className="mtf-h">Bias</span>
+        <span className="mtf-h">Score</span>
+        <span className="mtf-h">RSI</span>
+        <span className="mtf-h">S1</span>
+        <span className="mtf-h">R1</span>
+        {MTF.map((t) => {
+          const a = rows[t.id];
+          if (a === undefined) return <span key={t.id} className="mtf-row muted small">{t.label} · loading…</span>;
+          if (a === null) return <span key={t.id} className="mtf-row muted small">{t.label} · not enough data</span>;
+          const r = a.read;
+          const tone = r.bias === "Bullish" ? "up" : r.bias === "Bearish" ? "down" : "flat";
+          return (
+            <div key={t.id} className="mtf-cells">
+              <b>{t.label}</b>
+              <span className={`mtf-bias ${tone}`}>{r.bias}</span>
+              <span className="mtf-score">
+                <i style={{ left: `${(r.score + 100) / 2}%` }} />
+              </span>
+              <span>{r.rsi != null ? r.rsi.toFixed(0) : "—"}</span>
+              <span className="up">{r.support[0] ? `$${fmtPrice(r.support[0].mid)}` : "—"}</span>
+              <span className="down">{r.resistance[0] ? `$${fmtPrice(r.resistance[0].mid)}` : "—"}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function UltraTeaser({ onSubscribe }: { onSubscribe?: () => void }) {
+  return (
+    <div className="mtf locked-read" onClick={onSubscribe}>
+      <span className="label">Multi-timeframe read · Ultra</span>
+      <p className="small">
+        🔒 <b>ORBIT Ultra</b>: 5m · 1h · 4h · 1D read on one screen, whale trades on the chart, unlimited alerts.
+      </p>
     </div>
   );
 }
