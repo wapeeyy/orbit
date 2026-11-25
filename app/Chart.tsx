@@ -314,7 +314,7 @@ export default function Chart({
       }
       const top = [...agg.values()].sort((x, y) => y.usd - x.usd).slice(0, el.clientWidth < 600 ? 4 : 7);
       for (const g of top)
-        markers.push({ time: g.t as UTCTimestamp, position: g.kind === "buy" ? "belowBar" : "aboveBar", color: g.kind === "buy" ? "#4dd0ff" : "#ff7ab6", shape: "circle", size: 0.5, text: `🐋 ${g.kind === "buy" ? "B" : "S"} ${kusd(g.usd)}${g.n > 1 ? ` ×${g.n}` : ""}` });
+        markers.push({ time: g.t as UTCTimestamp, position: g.kind === "buy" ? "belowBar" : "aboveBar", color: g.kind === "buy" ? "#4dd0ff" : "#ff7ab6", shape: "circle", size: 0.5, text: `${g.kind === "buy" ? "WHALE BUY" : "WHALE SELL"} ${kusd(g.usd)}${g.n > 1 ? ` ×${g.n}` : ""}` });
     }
     createSeriesMarkers(price, markers.sort((x, y) => (x.time as number) - (y.time as number)));
 
@@ -466,7 +466,7 @@ export default function Chart({
       <div className="layers">
         {LAYERS.map((l) => (
           <button key={l.id} className={`${on(l.id) ? "on" : ""} ${!allowed(l.id) ? "locked" : ""}`} onClick={() => toggle(l.id)} style={{ ["--c" as string]: l.color }}>
-            <i />{l.label}{!allowed(l.id) ? (l.ultra && pro ? " 🔒 Ultra" : " 🔒") : ""}
+            <i />{l.label}{!allowed(l.id) && <em className="lock-tag">{l.ultra && pro ? "Ultra" : "Pro"}</em>}
           </button>
         ))}
       </div>
@@ -488,7 +488,7 @@ export default function Chart({
         <div className="read locked-read" onClick={onSubscribe}>
           <span className="label">ORBIT read · {tf}</span>
           <div className="read-bias blur">{ta.read.bias}</div>
-          <p className="small">🔒 <b>ORBIT Pro</b>: market structure (HH/HL/LH/LL, BOS, CHoCH), support &amp; resistance, volume profile, fib, whale trades on the chart, a daily read with key levels — and price alerts.</p>
+          <p className="small"><b>ORBIT Pro</b>: market structure (HH/HL/LH/LL, BOS, CHoCH), support &amp; resistance, volume profile, fib, whale trades on the chart, a daily read with key levels — and price alerts.</p>
           <button className="copy primary">Unlock with Pro</button>
         </div>
       )}
@@ -594,7 +594,7 @@ function AlertBox({ ta, ca, symbol, max }: { ta: Analysis; ca: string; symbol: s
       : addAlert({ ca, symbol: symbol || ca.slice(0, 4), price, label, dir: price >= ta.last ? "above" : "below" });
   return (
     <div className="alerts">
-      <span className="label">🔔 Price alerts</span>
+      <span className="label">Price alerts</span>
       <div className="alert-quick">
         {quick.map((q) => (
           <button key={q.label} onClick={() => add(q.price, q.label)}>
@@ -636,7 +636,7 @@ function WhaleList({ whales, onTrace }: { whales: WhaleTrade[]; onTrace?: (w: st
   return (
     <div className="whales">
       <div className="whales-head">
-        <span className="label">🐋 Whale trades (last 24h)</span>
+        <span className="label">Whale trades · last 24h</span>
         <span className="small"><b className="up">Buy {kusd(buys)}</b> · <b className="down">Sell {kusd(sells)}</b></span>
       </div>
       <ul>
@@ -734,7 +734,7 @@ function UltraTeaser({ onSubscribe }: { onSubscribe?: () => void }) {
     <div className="mtf locked-read" onClick={onSubscribe}>
       <span className="label">Multi-timeframe read · Ultra</span>
       <p className="small">
-        🔒 <b>ORBIT Ultra</b>: 5m · 1h · 4h · 1D read on one screen, whale trades on the chart, unlimited alerts.
+        <b>ORBIT Ultra</b>: 5m · 1h · 4h · 1D read on one screen, whale trades on the chart, unlimited alerts.
       </p>
     </div>
   );

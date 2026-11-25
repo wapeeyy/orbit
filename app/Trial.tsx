@@ -72,7 +72,7 @@ export function TrialBanner({ onSubscribe }: { onSubscribe: () => void }) {
   if (st.s === "active")
     return (
       <div className="trial-banner" onClick={onSubscribe}>
-        <span>⭐ Pro trial · <b>{left(st.exp - Date.now())} left</b></span>
+        <span>Pro trial · <b>{left(st.exp - Date.now())} left</b></span>
         <span className="trial-cta">Keep Pro →</span>
       </div>
     );

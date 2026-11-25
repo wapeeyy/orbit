@@ -657,3 +657,5 @@ footer { font-family: var(--narrow); letter-spacing: 0.16em; text-transform: upp
 .gift-out { display: grid; gap: 8px; margin-top: 12px; }
 .admin-row.gift b { color: #7aa2ff; }
 @media (max-width: 720px) { .gift-form { grid-template-columns: 1fr 1fr; } .gift-form input { grid-column: 1 / -1; } .gift-form .tier-btn { grid-column: 1 / -1; } }
+
+.layers .lock-tag { font-style: normal; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; border: 1px solid var(--gold); color: var(--gold); border-radius: 999px; padding: 1px 6px; margin-left: 2px; }

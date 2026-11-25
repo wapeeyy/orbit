@@ -45,7 +45,7 @@ export const PLANS: {
     price: { month: 59, year: 590 },
     features: [
       { text: "Everything in Pro" },
-      { text: "🐋 Whale trades on the chart + whale list (tap to trace)" },
+      { text: "Whale trades on the chart + whale list (tap to trace)" },
       { text: "Multi-timeframe Read: 5m · 1h · 4h · 1D on one screen" },
       { text: "Unlimited price alerts" },
       { text: "Smart-money watchlist: alerts when wallets you follow buy or sell", soon: true },

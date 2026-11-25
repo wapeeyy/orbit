@@ -67,7 +67,7 @@ export default function AlertWatcher({ onOpen }: { onOpen?: (ca: string) => void
     <div className="toasts">
       {toasts.slice(-3).map((t) => (
         <div key={t.id} className={`toast ${t.dir === "above" ? "up" : "down"}`}>
-          <b>🔔 {t.symbol} {t.dir === "above" ? "broke above" : "dropped below"} ${fmtPrice(t.price)}</b>
+          <b>{t.symbol} {t.dir === "above" ? "broke above" : "dropped below"} ${fmtPrice(t.price)}</b>
           <span className="small">{t.label ? `${t.label} · ` : ""}now ${fmtPrice(t.now)}</span>
           <div className="toast-actions">
             {onOpen && <button onClick={() => { onOpen(t.ca); setToasts((x) => x.filter((y) => y.id !== t.id)); }}>Open chart</button>}
