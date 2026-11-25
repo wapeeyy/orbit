@@ -40,11 +40,25 @@ type Tx = {
   transaction: { message: { accountKeys: { pubkey: string; signer: boolean }[] } };
 };
 
-export type Payment = { usd: number; usdc: number; sol: number; payer: string; days: number; at: number };
+export type PlanId = "pro-month" | "pro-year" | "ultra-month" | "ultra-year";
+/** Prices per plan (USD, paid in USDC or SOL). Pro monthly can still be overridden with PRICE_USDC. */
+export function plans(): Record<PlanId, { tier: "pro" | "ultra"; usd: number; days: number; yearly: boolean }> {
+  const pro = Number(process.env.PRICE_USDC || 23);
+  return {
+    "pro-month": { tier: "pro", usd: pro, days: 30, yearly: false },
+    "pro-year": { tier: "pro", usd: 230, days: 365, yearly: true },
+    "ultra-month": { tier: "ultra", usd: 59, days: 30, yearly: false },
+    "ultra-year": { tier: "ultra", usd: 590, days: 365, yearly: true },
+  };
+}
+export const isPlan = (p: unknown): p is PlanId => typeof p === "string" && p in plans();
+
+export type Payment = { usd: number; usdc: number; sol: number; payer: string; days: number; at: number; tier: "pro" | "ultra" };
 
 /** Semak transaksi: berjaya, ≤ 72 jam, dan wallet penerima dapat USDC/SOL yang cukup. */
-export async function verifyPayment(signature: string): Promise<Payment> {
-  const { wallet, priceUsdc } = payConfig();
+export async function verifyPayment(signature: string, planId: PlanId = "pro-month"): Promise<Payment> {
+  const { wallet } = payConfig();
+  const plan = plans()[planId];
   if (!wallet) throw new Error("Receiving wallet (PAY_WALLET) is not set");
   const tx = await rpc<Tx | null>("getTransaction", [
     signature,
@@ -68,12 +82,12 @@ export async function verifyPayment(signature: string): Promise<Payment> {
     }
   }
   const usd = usdc + (sol > 0 ? sol * (await solUsd()) : 0);
-  const unit = priceUsdc * 0.97; // toleransi 3% untuk turun naik harga SOL
+  const unit = plan.usd * 0.97; // 3% tolerance for SOL price moves
   if (usd < unit) {
-    throw new Error(`Payment too small or not sent to the ORBIT wallet: received ~$${usd.toFixed(2)}, need $${priceUsdc}`);
+    throw new Error(`Payment too small for ORBIT ${plan.tier === "ultra" ? "Ultra" : "Pro"}: received ~$${usd.toFixed(2)}, need $${plan.usd}`);
   }
-  const days = DAYS * Math.min(12, Math.floor(usd / unit));
-  return { usd, usdc, sol: Math.max(sol, 0), payer: keys[0], days, at };
+  const days = plan.days * Math.min(plan.yearly ? 2 : 12, Math.floor(usd / unit));
+  return { usd, usdc, sol: Math.max(sol, 0), payer: keys[0], days, at, tier: plan.tier };
 }
 
 /** Cari transaksi Solana Pay melalui alamat reference */

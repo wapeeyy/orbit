@@ -612,3 +612,4 @@ footer { font-family: var(--narrow); letter-spacing: 0.16em; text-transform: upp
   .mtf-grid { grid-template-columns: 30px 76px 1fr 30px; }
   .mtf-grid > .mtf-h:nth-child(5), .mtf-grid > .mtf-h:nth-child(6), .mtf-cells > :nth-child(5), .mtf-cells > :nth-child(6) { display: none; }
 }
+.pay-plan { margin: -4px 0 12px; color: var(--gold); font-size: 13px; letter-spacing: 0.04em; }

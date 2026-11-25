@@ -18,7 +18,9 @@ type Config = {
   priceSol: number | null;
   usdcMint: string;
   days: number;
-  active: { exp: number } | null;
+  solUsd: number | null;
+  plans?: Record<string, { tier: "pro" | "ultra"; usd: number; days: number; yearly: boolean }>;
+  active: { exp: number; tier?: "pro" | "ultra" } | null;
 };
 
 const date = (t: number) => new Date(t).toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" });
@@ -28,7 +30,7 @@ export default function Subscribe() {
   const [error, setError] = useState<string | null>(null);
   const [key, setKeyState] = useState<string | null>(null);
   const [renew, setRenew] = useState(false);
-  const [pick, setPick] = useState<{ tier: Tier; billing: Billing } | null>(null);
+  const [pick, setPick] = useState<{ tier: Tier; billing: Billing }>({ tier: "pro", billing: "month" });
 
   const load = () => {
     const sent = getKey();
@@ -54,11 +56,19 @@ export default function Subscribe() {
 
   const exp = keyExpiry(key);
   const active = !!exp && exp > Date.now();
+  const tier: Tier = active ? (cfg?.active?.tier ?? "pro") : "free";
+  const tierName = tier === "ultra" ? "Ultra" : "Pro";
 
   return (
     <section>
-      <PlanCards current={active ? "pro" : "free"} onPick={(t, b) => { setPick({ tier: t, billing: b }); setTimeout(() => document.querySelector(".paybox")?.scrollIntoView({ behavior: "smooth" }), 50); }} />
-      {pick && <p className="muted small" style={{ textAlign: "center" }}>Selected: <b>ORBIT {pick.tier === "ultra" ? "Ultra" : "Pro"}</b> · {pick.billing === "year" ? "yearly" : "monthly"}</p>}
+      <PlanCards
+        current={tier}
+        onPick={(t, b) => {
+          setPick({ tier: t, billing: b });
+          setRenew(true);
+          setTimeout(() => document.querySelector(".card.pay")?.scrollIntoView({ behavior: "smooth" }), 80);
+        }}
+      />
       <p className="muted small" style={{ textAlign: "center" }}>Pay with USDC or SOL (Solana). Access turns on automatically once the payment is confirmed.</p>
 
       {error && <div className="alert danger">{error}</div>}
@@ -67,10 +77,10 @@ export default function Subscribe() {
         <div className="card">
           <div className="alert ok" style={{ marginBottom: 12 }}>
             {exp! > Date.UTC(2090, 0, 1) ? (
-              <strong>Lifetime Pro access (complimentary)</strong>
+              <strong>Lifetime {tierName} access (complimentary)</strong>
             ) : (
               <>
-                <strong>Subscription active until {date(exp!)}</strong> ({Math.ceil((exp! - Date.now()) / 86_400_000)} days left)
+                <strong>ORBIT {tierName} active until {date(exp!)}</strong> ({Math.ceil((exp! - Date.now()) / 86_400_000)} days left)
               </>
             )}
           </div>
@@ -84,7 +94,7 @@ export default function Subscribe() {
             </button>
           </div>
           <p className="muted small">
-            Save this code (e.g. in Notes). On another phone: open the <b>activation link</b> once and you're Pro.
+            Save this code (e.g. in Notes). On another phone: open the <b>activation link</b> once and you&apos;re {tierName}.
           </p>
         </div>
       )}
@@ -94,7 +104,7 @@ export default function Subscribe() {
       )}
 
       {cfg?.ready && cfg.wallet && (!active || renew) && (
-        <PayBox cfg={cfg} onPaid={(k) => { setKey(k); setRenew(false); load(); }} />
+        <PayBox cfg={cfg} plan={`${pick.tier === "ultra" ? "ultra" : "pro"}-${pick.billing}`} onPaid={(k) => { setKey(k); setRenew(false); load(); }} />
       )}
 
       {!active && <RestoreKey onDone={load} />}
@@ -135,7 +145,10 @@ async function refFromSecret(secret: string) {
   return bs58.encode(new Uint8Array(d));
 }
 
-function PayBox({ cfg, onPaid }: { cfg: Config; onPaid: (key: string) => void }) {
+function PayBox({ cfg, plan, onPaid }: { cfg: Config; plan: string; onPaid: (key: string) => void }) {
+  const p = cfg.plans?.[plan] ?? { tier: "pro" as const, usd: cfg.priceUsdc, days: cfg.days, yearly: false };
+  const planName = `ORBIT ${p.tier === "ultra" ? "Ultra" : "Pro"} · ${p.yearly ? "1 year" : `${p.days} days`}`;
+  const solAmount = cfg.solUsd ? Math.ceil((p.usd / cfg.solUsd) * 10_000) / 10_000 : null;
   const [token, setToken] = useState<"USDC" | "SOL">("USDC");
   const [qr, setQr] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -148,11 +161,11 @@ function PayBox({ cfg, onPaid }: { cfg: Config; onPaid: (key: string) => void })
     refFromSecret(secret).then(setReference);
   }, [secret]);
 
-  const amount = token === "USDC" ? cfg.priceUsdc.toFixed(2) : (cfg.priceSol ?? 0).toFixed(4);
+  const amount = token === "USDC" ? p.usd.toFixed(2) : (solAmount ?? 0).toFixed(4);
   const url = reference
     ? `solana:${cfg.wallet}?amount=${amount}` +
       (token === "USDC" ? `&spl-token=${cfg.usdcMint}` : "") +
-      `&reference=${reference}&label=ORBIT&message=${encodeURIComponent(`ORBIT subscription ${cfg.days} days`)}`
+      `&reference=${reference}&label=ORBIT&message=${encodeURIComponent(planName)}`
     : null;
 
   useEffect(() => {
@@ -183,7 +196,7 @@ function PayBox({ cfg, onPaid }: { cfg: Config; onPaid: (key: string) => void })
     const tick = async () => {
       if (dead || Date.now() - started > 30 * 60_000) return;
       try {
-        const { ok, j } = await claim({ secret });
+        const { ok, j } = await claim({ secret, plan });
         if (dead) return;
         if (ok && j.key) return done(j.key);
         if (!ok && !j.pending) setStatus(j.error);
@@ -196,13 +209,13 @@ function PayBox({ cfg, onPaid }: { cfg: Config; onPaid: (key: string) => void })
       clearTimeout(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secret]);
+  }, [secret, plan]);
 
   const verifySig = async () => {
     setBusy(true);
     setStatus("Checking transaction…");
     try {
-      const { ok, j } = await claim({ signature: sig.trim() });
+      const { ok, j } = await claim({ signature: sig.trim(), plan });
       if (ok && j.key) done(j.key);
       else setStatus(j.error ?? "Couldn't verify");
     } finally {
@@ -213,6 +226,7 @@ function PayBox({ cfg, onPaid }: { cfg: Config; onPaid: (key: string) => void })
   return (
     <div className="card pay">
       <h3>Pay & activate</h3>
+      <p className="pay-plan">{planName} — <b>${p.usd}</b></p>
       <div className="views" style={{ marginBottom: 14 }}>
         {(["USDC", "SOL"] as const).map((t) => (
           <button key={t} className={token === t ? "on" : ""} onClick={() => setToken(t)}>
@@ -235,7 +249,7 @@ function PayBox({ cfg, onPaid }: { cfg: Config; onPaid: (key: string) => void })
         <div className="pay-steps">
           <p className="small"><b>Pay with Phantom / Solflare</b></p>
           <p className="small muted">
-            Scan the QR with your wallet app, or tap the button below on your phone. Keep this page open — Pro turns on by
+            Scan the QR with your wallet app, or tap the button below on your phone. Keep this page open — your plan turns on by
             itself about 30 seconds after you pay.
           </p>
           {url && (
@@ -290,7 +304,10 @@ function PayBox({ cfg, onPaid }: { cfg: Config; onPaid: (key: string) => void })
           WhatsApp admin ({ADMIN_WA_DISPLAY})
         </a>
       )}
-      <p className="muted small">Pay more = longer access (e.g. 2× the price = 60 days, up to 12 months).</p>
+      <p className="muted small">
+        {p.yearly ? "Yearly plan: 12 months of access." : "Pay more = longer access (e.g. 2× the price = 60 days, up to 12 months)."} Switching from Pro to Ultra
+        starts a new Ultra code from the day you pay.
+      </p>
     </div>
   );
 }

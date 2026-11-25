@@ -13,7 +13,7 @@ function same(a: string, b: string) {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
-export type KeyPayload = { exp: number; id: string; t?: number }; // exp & t (masa transaksi terakhir) dalam ms
+export type KeyPayload = { exp: number; id: string; t?: number; tier?: "pro" | "ultra" }; // exp & t (masa transaksi terakhir) dalam ms
 
 /** Kod akses langganan: payload.tandatangan */
 export function signKey(p: KeyPayload) {
@@ -26,6 +26,8 @@ export function signKey(p: KeyPayload) {
 const COMP_HASHES = new Set([
   "6e2fbbbaafd5b91ad7293028ad2047da92be651146a995b883a9b83355795cec", // owner
   "25e00ea4fc1fc87cd065b3c6414788d318e5605504af49047f7ded46349561c7", // member1
+  "331cb1ea04f6748fb4830ae8a036abf82a4231893c29398f9afee15e14b04a67", // owner (Ultra)
+  "0aae673dddc65a982d964f84054911a5b1234d64f6e168ba1709f6c9af6571e6", // member1 (Ultra)
 ]);
 
 export function verifyKey(key: string | null | undefined): KeyPayload | null {
