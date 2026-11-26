@@ -51,7 +51,10 @@ export default function TelegramCard() {
         <h3>Telegram alerts</h3>
         <span className="tier-tag ultra">Ultra</span>
       </div>
-      <p className="small muted">Price alerts and smart-money trades sent to Telegram — even when ORBIT is closed. Checked about every 5 minutes.</p>
+      <p className="small muted">
+        Price alerts and smart-money trades sent to Telegram — even when ORBIT is closed. Checked about every 5 minutes.{" "}
+        <a href="/orbit-telegram-guide.pdf" target="_blank" rel="noreferrer">Guide (PDF) ↗</a>
+      </p>
       {!s ? (
         <p className="muted small">Checking…</p>
       ) : !s.ready ? (
