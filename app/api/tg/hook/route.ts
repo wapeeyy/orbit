@@ -21,6 +21,24 @@ async function bind(chat: Chat, which: "public" | "ultra") {
   const c = await getCommunity();
   c[which] = { id: chat.id, title: chat.title ?? which, link: await inviteLink(chat, which === "ultra") };
   await setCommunity(c);
+  if (which === "ultra" && c.ultra?.link) {
+    // invite every active Ultra subscriber who already connected Telegram
+    const [ids] = (await kvPipeline([["SMEMBERS", "tgsubs"]])) as [string[]];
+    let n = 0;
+    for (const id of ids ?? []) {
+      const raw = await kvGet(`tgsub:${id}`);
+      if (!raw) continue;
+      const s = JSON.parse(raw) as TgSub;
+      if (!s.chat || s.exp < Date.now() || s.invited === chat.id) continue;
+      if (await tgSend(s.chat, "<b>The ORBIT Ultra group is open.</b>\nLive whale trades, community buying waves and wallet rushes on trending coins. Tap the button — the bot lets you in automatically.", { text: "Join ORBIT Ultra", url: c.ultra.link })) {
+        s.invited = chat.id;
+        await kvPipeline([["SET", `tgsub:${id}`, JSON.stringify(s)]]);
+        n++;
+      }
+    }
+    const owner = await kvGet("tg:ownerchat");
+    if (owner) await tgSend(owner, `Ultra group bound. Invite sent to ${n} Ultra subscriber(s) already on Telegram; new ones get it when they connect.`);
+  }
   await tgSend(chat.id, which === "ultra"
     ? "<b>This is now the ORBIT Ultra group.</b>\nMembers join through a link in the ORBIT app; the bot approves Ultra subscribers only and removes them when Ultra ends. Live whale trades, community buying and wallet rushes on trending coins are posted here."
     : "<b>This is now the ORBIT community channel.</b>\nUpdates, new features and the daily ORBIT reads are posted here.");
@@ -87,7 +105,9 @@ export async function POST(req: Request) {
     }
     const { id, exp, owner } = JSON.parse(link) as { id: string; exp: number; owner?: boolean };
     const old = await kvGet(`tgsub:${id}`);
+    const c0 = await getCommunity();
     const sub: TgSub = old ? { ...(JSON.parse(old) as TgSub), chat: chat.id, exp, owner } : { chat: chat.id, exp, owner, alerts: [], wallets: [] };
+    if (c0.ultra?.link) sub.invited = c0.ultra.id; // the welcome message below carries the Join button
     await kvPipeline([
       ["SET", `tgsub:${id}`, JSON.stringify(sub)],
       ["SADD", "tgsubs", id],

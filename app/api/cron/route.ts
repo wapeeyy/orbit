@@ -55,6 +55,18 @@ export async function GET() {
   const coinSet = new Set<string>([...subs.flatMap((x) => x.s.alerts.map((a) => a.ca)), ...subs.flatMap((x) => (x.s.coins ?? []).map((c) => c.ca))]);
   const info = await dexInfo([...coinSet].slice(0, 90));
 
+  // 0. Ultra group invite, once per subscriber (approval happens on the join request)
+  if (community.ultra?.link) {
+    for (const x of subs) {
+      if (x.s.invited === community.ultra.id) continue;
+      const ok = await tgSend(x.s.chat, "<b>You're in ORBIT Ultra.</b>\nJoin the private ORBIT Ultra group: live whale trades, community buying waves and wallet rushes on trending coins. Tap the button — the bot lets you in automatically.", { text: "Join ORBIT Ultra", url: community.ultra.link });
+      if (ok) {
+        x.s.invited = community.ultra.id;
+        sent++;
+      }
+    }
+  }
+
   // 1. price alerts
   for (const x of subs) {
     const keep: TgSub["alerts"] = [];

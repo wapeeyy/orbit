@@ -48,6 +48,7 @@ export type TgSub = {
   chat: number;
   exp: number; // access-code expiry (ms)
   owner?: boolean;
+  invited?: number; // Ultra group id the invite was sent for
   alerts: { id: string; ca: string; symbol: string; price: number; dir: "above" | "below"; label?: string }[];
   wallets: { address: string; label: string; seen: string[] }[];
   coins?: CoinWatch[];
