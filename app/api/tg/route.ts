@@ -14,6 +14,7 @@ export async function GET(req: Request) {
   if (key?.tier !== "ultra") return NextResponse.json({ error: "Ultra only" }, { status: 402 });
   if (!tgReady() || !kvConfigured()) return NextResponse.json({ ready: false }, { headers: nocache });
   const id = subId(req.headers.get("x-orbit-key")!);
+  await kvPipeline([["SET", `tgkey:${id}`, req.headers.get("x-orbit-key")!.trim(), "PX", Math.max(60_000, key.exp - Date.now())]]);
   const raw = await kvGet(`tgsub:${id}`);
   const sub = raw ? (JSON.parse(raw) as TgSub) : null;
   const code = randomBytes(9).toString("base64url");

@@ -70,7 +70,7 @@ async function broadcast(items: { text: string; ca: string }[]) {
   const ultra = (await getCommunity()).ultra;
   let sent = 0;
   for (const it of items) {
-    const btn = { text: "Open in ORBIT", url: `${SITE}/?ca=${it.ca}&src=tg-pick` };
+    const btn = { text: "Open in ORBIT", url: `${SITE}/?ca=${it.ca}&src=tg-pick`, app: true };
     for (const chat of chats) if (await tgSend(chat, it.text, btn)) sent++;
     if (ultra) await tgSend(ultra.id, it.text, btn);
   }

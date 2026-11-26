@@ -4,6 +4,7 @@ import Pwa from "./Pwa";
 import { Starfield } from "./Cosmos";
 import Hit from "./Hit";
 import NoZoom from "./NoZoom";
+import TgApp from "./TgApp";
 
 export const metadata: Metadata = {
   title: "ORBIT — Solana coin scanner",
@@ -50,6 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Pwa />
               <Hit />
         <NoZoom />
+        <TgApp />
       </body>
     </html>
   );

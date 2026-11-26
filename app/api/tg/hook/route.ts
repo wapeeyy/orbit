@@ -142,7 +142,7 @@ export async function POST(req: Request) {
     }
     const all = [...((await readPicks("scalp"))?.picks ?? []), ...((await readPicks("hold"))?.picks ?? [])];
     if (!all.length) await tgSend(chat.id, "Nothing passes every ORBIT check right now. You get an alert here the moment a coin is added to Scalp or Hold.");
-    for (const p of all) await tgSend(chat.id, pickText(p).replace("New ORBIT", "ORBIT"), { text: "Open in ORBIT", url: `${SITE}/?ca=${p.ca}&src=tg-pick` });
+    for (const p of all) await tgSend(chat.id, pickText(p).replace("New ORBIT", "ORBIT"), { text: "Open in ORBIT", url: `${SITE}/?ca=${p.ca}&src=tg-pick`, app: true });
     return NextResponse.json({ ok: true });
   }
   if (await isOwner(chat.id)) {

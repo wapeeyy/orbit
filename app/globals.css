@@ -883,3 +883,7 @@ html, body { touch-action: pan-x pan-y; -webkit-text-size-adjust: 100%; }
   .sig-plan { grid-template-columns: 1fr 1fr; }
   .sig-checks span { grid-template-columns: 18px 1fr; } .sig-checks em { grid-column: 2; }
 }
+
+/* inside Telegram (Mini App): no "install app" banner */
+body.in-tg .install { display: none !important; }
+body.in-tg.has-install { padding-bottom: 0 !important; }

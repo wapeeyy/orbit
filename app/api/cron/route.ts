@@ -12,7 +12,7 @@ export const maxDuration = 60;
 
 const MIN = 60_000;
 const once = (key: string, ttlSec: number) => setOnce(key, "1", ttlSec).catch(() => false);
-const open = (ca: string) => ({ text: "Open in ORBIT", url: `${SITE}/?ca=${ca}&src=tg` });
+const open = (ca: string) => ({ text: "Open in ORBIT", url: `${SITE}/?ca=${ca}&src=tg`, app: true });
 
 /**
  * Runs about every minute (GitHub Actions loop). Public but safe: a lock makes extra calls no-ops

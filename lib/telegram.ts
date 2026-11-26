@@ -1,4 +1,4 @@
-import { createHash, createHmac } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { kvGet, kvPipeline } from "./kv";
 
 // Telegram bot (@OrbitOnSolBot): personal Ultra alerts, the public ORBIT channel and the private ORBIT Ultra group.
@@ -29,13 +29,16 @@ export async function tgCall<T = unknown>(method: string, body: Record<string, u
   }
 }
 
-export async function tgSend(chatId: number | string, text: string, button?: { text: string; url: string }) {
+/** app: open the link as a Telegram Mini App (private chats only; groups and channels get a normal link) */
+export type TgButton = { text: string; url: string; app?: boolean };
+export async function tgSend(chatId: number | string, text: string, button?: TgButton) {
+  const btn = button ? (button.app && Number(chatId) > 0 ? { text: button.text, web_app: { url: button.url } } : { text: button.text, url: button.url }) : null;
   const r = await tgCall("sendMessage", {
     chat_id: chatId,
     text,
     parse_mode: "HTML",
     link_preview_options: { is_disabled: true },
-    ...(button ? { reply_markup: { inline_keyboard: [[button]] } } : {}),
+    ...(btn ? { reply_markup: { inline_keyboard: [[btn]] } } : {}),
   });
   return r.ok;
 }
@@ -73,3 +76,24 @@ export const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;")
 export const usd = (n: number) => "$" + (n >= 1e6 ? (n / 1e6).toFixed(2) + "M" : n >= 1e4 ? Math.round(n / 1e3) + "K" : Math.round(n).toLocaleString("en-US"));
 export const px = (p: number) => (p >= 1 ? p.toFixed(4) : p.toPrecision(4));
 export const SITE = "https://www.orbitonsol.com";
+
+/** Check Telegram Mini App initData (signed with the bot token); returns the Telegram user id */
+export function tgVerifyInitData(initData: string, maxAgeS = 86_400): number | null {
+  if (!initData || !tgToken()) return null;
+  const q = new URLSearchParams(initData);
+  const hash = q.get("hash");
+  if (!hash) return null;
+  q.delete("hash");
+  const check = [...q.entries()].map(([k, v]) => `${k}=${v}`).sort().join("\n");
+  const secret = createHmac("sha256", "WebAppData").update(tgToken()).digest();
+  const sig = createHmac("sha256", secret).update(check).digest();
+  const got = Buffer.from(hash, "hex");
+  if (got.length !== sig.length || !timingSafeEqual(got, sig)) return null;
+  if (Date.now() / 1000 - Number(q.get("auth_date") ?? 0) > maxAgeS) return null;
+  try {
+    const id = (JSON.parse(q.get("user") ?? "null") as { id?: number } | null)?.id;
+    return typeof id === "number" ? id : null;
+  } catch {
+    return null;
+  }
+}
