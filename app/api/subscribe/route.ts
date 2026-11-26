@@ -77,6 +77,15 @@ export async function POST(req: Request) {
   const plan: PlanId = isPlan(body.plan) ? body.plan : "pro-month";
   // $10 first month: only for a finished trial, within 48 h of its end, once per wallet
   let promoWallet: string | null = null;
+  let promoKey = "promo";
+  if (plan === "ultra-trial") {
+    // $5 Ultra month: only while the free trial is still running (1 h grace), once per wallet
+    const t = readSignedKey(body.trial);
+    if (!t?.trial || !t.w) return fail("This offer is only for people on the free trial.", 403);
+    if (Date.now() > t.exp + 3_600_000) return fail("Your trial has ended, so the $5 Ultra offer has too.", 403);
+    promoWallet = t.w;
+    promoKey = "ultratrial";
+  }
   if (plan === "pro-promo") {
     const t = readSignedKey(body.trial);
     if (!t?.trial || !t.w) return fail("This offer is only for people who finished the free trial.", 403);
@@ -86,8 +95,8 @@ export async function POST(req: Request) {
   const promoOnce = async (signature: string) => {
     if (!promoWallet) return true;
     if (!kvConfigured()) return false;
-    if (await setOnce(`promo:${promoWallet}`, signature, 400 * 86400)) return true;
-    return (await kvGet(`promo:${promoWallet}`)) === signature; // the same payment claimed again
+    if (await setOnce(`${promoKey}:${promoWallet}`, signature, 400 * 86400)) return true;
+    return (await kvGet(`${promoKey}:${promoWallet}`)) === signature; // the same payment claimed again
   };
   try {
     if (body.secret) {

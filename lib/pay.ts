@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { PROMO_USD } from "./trial";
+import { PROMO_USD, TRIAL_ULTRA_USD } from "./trial";
 import bs58 from "bs58";
 import { rpc } from "./holders";
 
@@ -41,7 +41,7 @@ type Tx = {
   transaction: { message: { accountKeys: { pubkey: string; signer: boolean }[] } };
 };
 
-export type PlanId = "pro-month" | "pro-year" | "ultra-month" | "ultra-year" | "pro-promo";
+export type PlanId = "pro-month" | "pro-year" | "ultra-month" | "ultra-year" | "pro-promo" | "ultra-trial";
 /** Prices per plan (USD, paid in USDC or SOL). Pro monthly can still be overridden with PRICE_USDC. */
 export function plans(): Record<PlanId, { tier: "pro" | "ultra"; usd: number; days: number; yearly: boolean }> {
   const pro = Number(process.env.PRICE_USDC || 23);
@@ -51,6 +51,7 @@ export function plans(): Record<PlanId, { tier: "pro" | "ultra"; usd: number; da
     "ultra-month": { tier: "ultra", usd: 59, days: 30, yearly: false },
     "ultra-year": { tier: "ultra", usd: 590, days: 365, yearly: true },
     "pro-promo": { tier: "pro", usd: PROMO_USD, days: 30, yearly: true }, // after-trial offer: one month, no multiples
+    "ultra-trial": { tier: "ultra", usd: TRIAL_ULTRA_USD, days: 30, yearly: true }, // during the trial: one Ultra month
   };
 }
 export const isPlan = (p: unknown): p is PlanId => typeof p === "string" && p in plans();
@@ -88,7 +89,7 @@ export async function verifyPayment(signature: string, planId: PlanId = "pro-mon
   if (usd < unit) {
     throw new Error(`Payment too small for ORBIT ${plan.tier === "ultra" ? "Ultra" : "Pro"}: received ~$${usd.toFixed(2)}, need $${plan.usd}`);
   }
-  const days = plan.days * Math.min(planId === "pro-promo" ? 1 : plan.yearly ? 2 : 12, Math.floor(usd / unit));
+  const days = plan.days * Math.min(planId === "pro-promo" || planId === "ultra-trial" ? 1 : plan.yearly ? 2 : 12, Math.floor(usd / unit));
   return { usd, usdc, sol: Math.max(sol, 0), payer: keys[0], days, at, tier: plan.tier };
 }
 

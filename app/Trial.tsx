@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { PROMO_USD, TRIAL_DAYS } from "@/lib/trial";
+import { PROMO_USD, TRIAL_DAYS, TRIAL_ULTRA_USD } from "@/lib/trial";
 import { startTrial, trialState, walletLinks } from "./trial";
 import { onKeyChange } from "./key";
 
@@ -73,7 +73,7 @@ export function TrialBanner({ onSubscribe }: { onSubscribe: () => void }) {
     return (
       <div className="trial-banner" onClick={onSubscribe}>
         <span>Pro trial · <b>{left(st.exp - Date.now())} left</b></span>
-        <span className="trial-cta">Keep Pro →</span>
+        <span className="trial-cta">Ultra ${TRIAL_ULTRA_USD} →</span>
       </div>
     );
   if (st.s === "offer")

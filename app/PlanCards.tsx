@@ -4,7 +4,7 @@ import { useState } from "react";
 import { PLANS, type Billing, type Tier } from "./plans";
 
 /** Free / Pro / Ultra pricing cards with monthly–yearly switch */
-export default function PlanCards({ current, onPick, promo = false }: { current: Tier; onPick: (t: Tier, b: Billing) => void; promo?: boolean }) {
+export default function PlanCards({ current, onPick, promo = false, ultraOffer = false }: { current: Tier; onPick: (t: Tier, b: Billing) => void; promo?: boolean; ultraOffer?: boolean }) {
   const [billing, setBilling] = useState<Billing>("month");
   return (
     <div className="plans-wrap">
@@ -23,7 +23,12 @@ export default function PlanCards({ current, onPick, promo = false }: { current:
               {p.id === "ultra" && <span className="tier-badge">Most powerful</span>}
               {p.id === "pro" && <span className="tier-badge pro">Most popular</span>}
               <span className="tier-name">{p.name}</span>
-              {promo && p.id === "pro" && billing === "month" ? (
+              {ultraOffer && p.id === "ultra" && billing === "month" ? (
+                <div className="tier-price">
+                  $5 <s className="was">${price}</s>
+                  <small> first month</small>
+                </div>
+              ) : promo && p.id === "pro" && billing === "month" ? (
                 <div className="tier-price">
                   $10 <s className="was">${price}</s>
                   <small> first month</small>
