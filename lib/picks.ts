@@ -215,7 +215,7 @@ export async function jobRunning(kind: Kind) {
  * time budget runs out and saves progress; coins whose data failed go back in the queue (up to 3 tries).
  * The published list only changes once the whole shortlist is done. Keeps the original pick time / price.
  */
-export async function refreshPicks(kind: Kind, budgetMs = 45_000): Promise<PicksState & { done: boolean }> {
+export async function refreshPicks(kind: Kind, budgetMs = 45_000): Promise<PicksState & { done: boolean; fresh?: Pick[] }> {
   deadline = Date.now() + budgetMs;
   const jk = `picks:job:${kind}`;
   const saved = kvConfigured() ? await kvGet(jk) : null;
@@ -250,6 +250,7 @@ export async function refreshPicks(kind: Kind, budgetMs = 45_000): Promise<Picks
   }
   const prev = await readPicks(kind);
   const out = job.out;
+  const fresh = out.filter((p) => !prev?.picks.some((x) => x.ca === p.ca));
   for (const p of out) {
     const old = prev?.picks.find((x) => x.ca === p.ca);
     if (old) {
@@ -264,7 +265,7 @@ export async function refreshPicks(kind: Kind, budgetMs = 45_000): Promise<Picks
     // open a track-record entry for every new pick
     for (const p of out) await kvPipeline([["SET", `picks:open:${kind}:${p.ca}`, JSON.stringify({ kind, ca: p.ca, symbol: p.symbol, entry: p.pickedPrice, target: p.target, stop: p.stop, at: p.pickedAt }), "NX"]]);
   }
-  return { ...state, done };
+  return { ...state, done, fresh };
 }
 
 export async function readPicks(kind: Kind): Promise<PicksState | null> {

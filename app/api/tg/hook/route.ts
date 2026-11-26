@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { kvGet, kvPipeline } from "@/lib/kv";
 import { SITE, esc, getCommunity, setCommunity, tgCall, tgHookSecret, tgName, tgSend, type TgSub } from "@/lib/telegram";
+import { pickText } from "@/lib/picknotify";
+import { readPicks } from "@/lib/picks";
 
 export const dynamic = "force-dynamic";
 
@@ -118,7 +120,7 @@ export async function POST(req: Request) {
     const c = await getCommunity();
     await tgSend(
       chat.id,
-      `<b>ORBIT connected.</b>\nPrice alerts, followed wallets and live signals on your watchlist will arrive here, even when the app is closed.\nSend /stop to disconnect.${c.ultra?.link ? "\n\nYou can also join the private ORBIT Ultra group:" : ""}`,
+      `<b>ORBIT connected.</b>\nPrice alerts, followed wallets and live signals on your watchlist will arrive here, even when the app is closed.\nSend /picks for the current ORBIT Scalp &amp; Hold list, /stop to disconnect.${c.ultra?.link ? "\n\nYou can also join the private ORBIT Ultra group:" : ""}`,
       c.ultra?.link ? { text: "Join ORBIT Ultra", url: c.ultra.link } : undefined,
     );
     if (owner) await tgSend(chat.id, "Owner commands:\n/announce your text — post to the channel and the Ultra group\n/bindchannel — then post <code>/bind public</code> in your channel\nIn your Ultra group send <code>/bind ultra</code>\n/community — show what is connected");
@@ -128,6 +130,19 @@ export async function POST(req: Request) {
     const id = await kvGet(`tgchat:${chat.id}`);
     if (id) await kvPipeline([["DEL", `tgsub:${id}`], ["SREM", "tgsubs", id], ["DEL", `tgchat:${chat.id}`]]);
     await tgSend(chat.id, "Disconnected. You will not get ORBIT alerts here any more.");
+    return NextResponse.json({ ok: true });
+  }
+  if (cmd === "/picks") {
+    // current ORBIT Scalp & Hold list, for connected Ultra subscribers
+    const id = await kvGet(`tgchat:${chat.id}`);
+    const sub = id ? ((JSON.parse((await kvGet(`tgsub:${id}`)) ?? "null") as TgSub | null)) : null;
+    if (!sub || sub.exp < Date.now()) {
+      await tgSend(chat.id, "ORBIT Scalp &amp; Hold is part of ORBIT Ultra. Get Ultra, then connect Telegram in the app.", { text: "Get ORBIT Ultra", url: `${SITE}/?tab=sub&src=tg-picks` });
+      return NextResponse.json({ ok: true });
+    }
+    const all = [...((await readPicks("scalp"))?.picks ?? []), ...((await readPicks("hold"))?.picks ?? [])];
+    if (!all.length) await tgSend(chat.id, "Nothing passes every ORBIT check right now. You get an alert here the moment a coin is added to Scalp or Hold.");
+    for (const p of all) await tgSend(chat.id, pickText(p).replace("New ORBIT", "ORBIT"), { text: "Open in ORBIT", url: `${SITE}/?ca=${p.ca}&src=tg-pick` });
     return NextResponse.json({ ok: true });
   }
   if (await isOwner(chat.id)) {

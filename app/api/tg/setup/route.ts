@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { keyFrom } from "@/lib/auth";
-import { tgHookSecret, tgReady, tgToken } from "@/lib/telegram";
+import { tgCall, tgHookSecret, tgReady, tgToken } from "@/lib/telegram";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +27,7 @@ export async function GET(req: Request) {
     body: JSON.stringify({ url: "https://www.orbitonsol.com/api/tg/hook", secret_token: tgHookSecret(), allowed_updates: ["message", "channel_post", "chat_join_request"] }),
   });
   const set = await r.json();
+  await tgCall("setMyCommands", { commands: [{ command: "picks", description: "Current ORBIT Scalp & Hold list (Ultra)" }, { command: "stop", description: "Disconnect ORBIT alerts" }] });
   const info = await (await fetch(`https://api.telegram.org/bot${t}/getWebhookInfo`)).json();
   return NextResponse.json({ set, allowed: info.result?.allowed_updates, pending: info.result?.pending_update_count, lastError: info.result?.last_error_message ?? null });
 }

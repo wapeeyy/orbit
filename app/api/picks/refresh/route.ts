@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { kvConfigured, kvGet, kvPipeline } from "@/lib/kv";
 import { dexInfo } from "@/lib/marketwatch";
+import { notifyNewPicks } from "@/lib/picknotify";
 import { jobRunning, openPickCas, refreshPicks, settlePicks, type Kind } from "@/lib/picks";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +30,7 @@ export async function GET() {
     if (kind) {
       const s = await refreshPicks(kind, 40_000);
       if (s.done) await kvPipeline([["SET", `picks:${kind}:built`, String(now)]]);
+      if (s.fresh?.length) out.notified = await notifyNewPicks(s.fresh).catch(() => 0);
       out[kind] = { done: s.done, scanned: s.scanned, shortlisted: s.shortlisted, passed: s.passed, failed: s.failed };
     }
   } catch (e) {

@@ -41,8 +41,8 @@ export async function tgSend(chatId: number | string, text: string, button?: { t
 }
 
 export type CoinWatch = { ca: string; symbol: string };
-export type Prefs = { whales: boolean; buying: boolean; wallets: boolean; minWhale: number };
-export const DEFAULT_PREFS: Prefs = { whales: true, buying: true, wallets: true, minWhale: 2000 };
+export type Prefs = { whales: boolean; buying: boolean; wallets: boolean; picks: boolean; minWhale: number };
+export const DEFAULT_PREFS: Prefs = { whales: true, buying: true, wallets: true, picks: true, minWhale: 2000 };
 
 export type TgSub = {
   chat: number;
