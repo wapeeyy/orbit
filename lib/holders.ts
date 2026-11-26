@@ -46,6 +46,11 @@ export async function rpc<T>(method: string, params: unknown[] | Record<string, 
   }
   if (!res.ok) throw new Error(`RPC ${method} HTTP ${res.status}`);
   const json = await res.json();
+  // Helius sometimes defers heavy calls (getTokenLargestAccounts on big tokens): wait and retry
+  if (json.error && /deprioritized|rate limit|too many/i.test(json.error.message ?? "") && attempt < 4) {
+    await new Promise((r) => setTimeout(r, 900 * 2 ** attempt));
+    return rpc<T>(method, params, attempt + 1);
+  }
   if (json.error) throw new Error(`RPC ${method}: ${json.error.message}`);
   return json.result as T;
 }
