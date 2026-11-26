@@ -3,9 +3,39 @@
 import { useEffect, useState } from "react";
 import { getAlerts, markHit, onAlertsChange, type PriceAlert } from "./alerts";
 import { fmtPrice } from "./Chart";
+import { checkFollows, type SmartSwap } from "./Follow";
+import { useTelegramSync } from "./Telegram";
 
 /** Checks active price alerts every 30 s while ORBIT is open; shows a toast + system notification when hit. */
-export default function AlertWatcher({ onOpen }: { onOpen?: (ca: string) => void }) {
+export default function AlertWatcher({ onOpen, ultra = false }: { onOpen?: (ca: string) => void; ultra?: boolean }) {
+  const [smart, setSmart] = useState<SmartSwap[]>([]);
+  useTelegramSync(ultra);
+  useEffect(() => {
+    if (!ultra) return;
+    let dead = false;
+    const run = async () => {
+      const fresh = await checkFollows();
+      if (dead || !fresh.length) return;
+      setSmart((s) => [...s, ...fresh].slice(-4));
+      for (const f of fresh) {
+        const body = `${f.label} ${f.side === "BUY" ? "bought" : "sold"} $${f.symbol} for $${Math.round(f.usd).toLocaleString("en-US")}`;
+        try {
+          if (Notification.permission === "granted") {
+            const reg = await navigator.serviceWorker?.getRegistration();
+            if (reg) reg.showNotification("ORBIT smart money", { body, icon: "/icon-192.png", tag: f.signature });
+            else new Notification("ORBIT smart money", { body, icon: "/icon-192.png" });
+          }
+        } catch {}
+      }
+    };
+    const t = setTimeout(run, 4000);
+    const iv = setInterval(run, 180_000);
+    return () => {
+      dead = true;
+      clearTimeout(t);
+      clearInterval(iv);
+    };
+  }, [ultra]);
   const [toasts, setToasts] = useState<(PriceAlert & { now: number })[]>([]);
 
   useEffect(() => {
@@ -62,9 +92,19 @@ export default function AlertWatcher({ onOpen }: { onOpen?: (ca: string) => void
     };
   }, []);
 
-  if (toasts.length === 0) return null;
+  if (toasts.length === 0 && smart.length === 0) return null;
   return (
     <div className="toasts">
+      {smart.map((s) => (
+        <div key={s.signature} className={`toast ${s.side === "BUY" ? "up" : "down"}`}>
+          <b>{s.label} {s.side === "BUY" ? "bought" : "sold"} ${s.symbol}</b>
+          <span className="small">${Math.round(s.usd).toLocaleString("en-US")} · smart-money watchlist</span>
+          <div className="toast-actions">
+            {onOpen && <button onClick={() => { onOpen(s.mint); setSmart((x) => x.filter((y) => y.signature !== s.signature)); }}>Open coin</button>}
+            <button onClick={() => setSmart((x) => x.filter((y) => y.signature !== s.signature))}>Dismiss</button>
+          </div>
+        </div>
+      ))}
       {toasts.slice(-3).map((t) => (
         <div key={t.id} className={`toast ${t.dir === "above" ? "up" : "down"}`}>
           <b>{t.symbol} {t.dir === "above" ? "broke above" : "dropped below"} ${fmtPrice(t.price)}</b>

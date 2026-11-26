@@ -78,11 +78,11 @@ function heliusKey() {
 }
 const apiBase = () => process.env.HELIUS_API_BASE || "https://api.helius.xyz";
 
-async function fetchSwaps(address: string) {
+export async function fetchSwaps(address: string, pages = PAGES) {
   const out: EnhancedTx[] = [];
   let before = "";
   let complete = false;
-  for (let page = 0; page < PAGES; page++) {
+  for (let page = 0; page < pages; page++) {
     const url =
       // Tanpa penapis type=SWAP: Helius terlepas sesetengah swap (bot / pump.fun). Kita tafsir sendiri di toSwap().
       `${apiBase()}/v0/addresses/${address}/transactions?api-key=${heliusKey()}&limit=100` +
@@ -109,7 +109,7 @@ async function fetchSwaps(address: string) {
 }
 
 /** Tukar satu transaksi kepada swap (dari sudut wallet ni) */
-function toSwap(tx: EnhancedTx, wallet: string, solPrice: number): Swap | null {
+export function toSwap(tx: EnhancedTx, wallet: string, solPrice: number): Swap | null {
   if (tx.transactionError || !tx.accountData) return null;
   let sol = 0;
   const tokens = new Map<string, number>();

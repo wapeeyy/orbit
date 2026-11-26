@@ -9,12 +9,16 @@ import {
   HistogramSeries,
   LineSeries,
   LineStyle,
+  type IChartApi,
   type SeriesMarker,
   type UTCTimestamp,
 } from "lightweight-charts";
 import { fetchCandles } from "@/lib/analysis";
 import { analyse as taAnalyse, type Analysis, type Zone } from "@/lib/ta";
 import { fetchWhales, type WhaleTrade } from "@/lib/whales";
+import { makeShareImage, shareImage } from "./share";
+import { api } from "./key";
+import { backtest, type Backtest } from "@/lib/backtest";
 import { addAlert, getAlerts, onAlertsChange, removeAlert, type PriceAlert } from "./alerts";
 
 // tf -> [timeframe GeckoTerminal, aggregate, bilangan candle]  (sama dengan /api/chart)
@@ -102,18 +106,19 @@ function analyse(cs: Candle[]) {
   };
 }
 
-type Layer = "structure" | "levels" | "profile" | "fib" | "whales" | "ema" | "vwap" | "rsi";
+type Layer = "structure" | "levels" | "profile" | "fib" | "whales" | "dev" | "ema" | "vwap" | "rsi";
 const LAYERS: { id: Layer; label: string; color: string; pro?: boolean; ultra?: boolean }[] = [
   { id: "structure", label: "Structure", color: "#f3d9a4", pro: true },
   { id: "levels", label: "S/R zones", color: "#7aa2ff", pro: true },
   { id: "profile", label: "Volume profile", color: ZONE, pro: true },
   { id: "whales", label: "Whales", color: "#4dd0ff", pro: true, ultra: true },
+  { id: "dev", label: "Dev wallet", color: "#ff8a3d", pro: true },
   { id: "fib", label: "Fib", color: "#c792ea", pro: true },
   { id: "ema", label: "EMA 20/50", color: "#5ad1ff" },
   { id: "vwap", label: "VWAP", color: "#ffffff" },
   { id: "rsi", label: "RSI", color: "#b388ff" },
 ];
-const DEFAULT_LAYERS: Layer[] = ["structure", "levels", "profile", "whales", "ema", "rsi"];
+const DEFAULT_LAYERS: Layer[] = ["structure", "levels", "profile", "whales", "dev", "ema", "rsi"];
 const kusd = (n: number) => "$" + new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 
 export default function Chart({
@@ -122,6 +127,7 @@ export default function Chart({
   symbol = "",
   pro = false,
   ultra = false,
+  dev,
   onSubscribe,
   onTrace,
   fixture,
@@ -133,6 +139,7 @@ export default function Chart({
   symbol?: string;
   pro?: boolean;
   ultra?: boolean;
+  dev?: string | null;
   onSubscribe?: () => void;
   onTrace?: (wallet: string) => void;
   fixture?: Record<string, Candle[]>;
@@ -145,9 +152,23 @@ export default function Chart({
   const [layers, setLayers] = useState<Set<Layer>>(() => new Set(initialLayers ?? DEFAULT_LAYERS));
   const box = useRef<HTMLDivElement>(null);
   const overlay = useRef<HTMLCanvasElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const [shareMsg, setShareMsg] = useState<string | null>(null);
   const wrap = useRef<HTMLElement>(null);
   const [full, setFull] = useState(false);
   const [whales, setWhales] = useState<WhaleTrade[] | null>(null);
+  const [devSwaps, setDevSwaps] = useState<DevSwap[] | null>(null);
+  useEffect(() => {
+    if (!pro || !dev || fixture) return;
+    let dead = false;
+    api(`/api/swaps?address=${dev}&mint=${token}`)
+      .then((r) => r.json())
+      .then((j) => !dead && setDevSwaps(j.swaps ?? []))
+      .catch(() => !dead && setDevSwaps([]));
+    return () => {
+      dead = true;
+    };
+  }, [pro, dev, token, fixture]);
   const [vh, setVh] = useState(800);
 
   useEffect(() => {
@@ -217,10 +238,23 @@ export default function Chart({
 
   const a = useMemo(() => (candles ? analyse(candles) : null), [candles]);
   const ta = useMemo(() => (candles && candles.length > 30 ? taAnalyse(candles) : null), [candles]);
+  const bt = useMemo(() => (ultra && candles ? backtest(candles) : null), [ultra, candles]);
   const allowed = (l: Layer) => {
     const d = LAYERS.find((x) => x.id === l);
     return d?.ultra ? ultra : d?.pro ? pro : true;
   };
+  async function share() {
+    if (!chartRef.current || !ta) return;
+    setShareMsg("Preparing image…");
+    try {
+      const blob = await makeShareImage({ chart: chartRef.current.takeScreenshot(), overlay: overlay.current, ta, sym: symbol || "COIN", tf, fmt: fmtPrice });
+      const r = await shareImage(blob, `ORBIT-${symbol || "read"}-${tf}.png`, `$${symbol} ${tf} read by ORBIT · orbitonsol.com`);
+      setShareMsg(r === "downloaded" ? "Image saved — post it anywhere." : null);
+    } catch {
+      setShareMsg("Couldn't make the image.");
+    }
+    setTimeout(() => setShareMsg(null), 4000);
+  }
   const on = (l: Layer) => layers.has(l) && allowed(l);
   const toggle = (l: Layer) => {
     if (!allowed(l)) return onSubscribe?.();
@@ -251,6 +285,7 @@ export default function Chart({
       crosshair: { mode: 0 },
     });
 
+    chartRef.current = chart;
     const price = chart.addSeries(CandlestickSeries, {
       upColor: UP,
       downColor: DOWN,
@@ -315,6 +350,16 @@ export default function Chart({
       const top = [...agg.values()].sort((x, y) => y.usd - x.usd).slice(0, el.clientWidth < 600 ? 4 : 7);
       for (const g of top)
         markers.push({ time: g.t as UTCTimestamp, position: g.kind === "buy" ? "belowBar" : "aboveBar", color: g.kind === "buy" ? "#4dd0ff" : "#ff7ab6", shape: "circle", size: 0.5, text: `${g.kind === "buy" ? "WHALE BUY" : "WHALE SELL"} ${kusd(g.usd)}${g.n > 1 ? ` ×${g.n}` : ""}` });
+    }
+    if (on("dev") && devSwaps?.length) {
+      const step = candles.length > 1 ? candles[1].t - candles[0].t : 60;
+      const first = candles[0].t, lastT = candles[candles.length - 1].t + step;
+      for (const d of devSwaps) {
+        const ts = Math.floor(d.ts / 1000);
+        if (ts < first || ts >= lastT) continue;
+        const t = first + Math.floor((ts - first) / step) * step;
+        markers.push({ time: t as UTCTimestamp, position: d.side === "BUY" ? "belowBar" : "aboveBar", color: d.side === "BUY" ? "#ffb84d" : "#ff3b30", shape: d.side === "BUY" ? "arrowUp" : "arrowDown", text: `DEV ${d.side} ${kusd(d.usd)}` });
+      }
     }
     createSeriesMarkers(price, markers.sort((x, y) => (x.time as number) - (y.time as number)));
 
@@ -438,12 +483,13 @@ export default function Chart({
     ro.observe(el);
     return () => {
       alive = false;
+      chartRef.current = null;
       ro.disconnect();
       chart.remove();
       cv.getContext("2d")?.clearRect(0, 0, cv.width, cv.height);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [candles, a, ta, tf, layers, pro, whales, full, vh]);
+  }, [candles, a, ta, tf, layers, pro, whales, devSwaps, full, vh]);
 
   const span = TFS.find((x) => x.id === tf)!.span;
 
@@ -480,7 +526,9 @@ export default function Chart({
       </div>
 
       {full && <p className="muted small full-hint">Tip: turn your phone sideways for a wider chart.</p>}
-      {ta && pro && <OrbitRead ta={ta} tf={tf} />}
+      {pro && dev && devSwaps && <DevPanel swaps={devSwaps} dev={dev} onTrace={onTrace} />}
+      {ta && pro && <OrbitRead ta={ta} tf={tf} onShare={share} shareMsg={shareMsg} />}
+      {ultra && bt && bt.samples >= 5 && <BacktestCard bt={bt} tf={tf} />}
       {pro && (ultra ? <MultiRead pool={pool} token={token} fixture={fixture} /> : <UltraTeaser onSubscribe={onSubscribe} />)}
       {ta && pro && <AlertBox ta={ta} ca={token} symbol={symbol} max={ultra ? Infinity : 5} />}
       {ultra && on("whales") && whales && whales.length > 0 && <WhaleList whales={whales} onTrace={onTrace} />}
@@ -522,7 +570,7 @@ export default function Chart({
 }
 
 /** Daily read: bias, key levels, reasons and what to watch */
-function OrbitRead({ ta, tf }: { ta: Analysis; tf: string }) {
+function OrbitRead({ ta, tf, onShare, shareMsg }: { ta: Analysis; tf: string; onShare?: () => void; shareMsg?: string | null }) {
   const r = ta.read;
   const tone = r.bias === "Bullish" ? "up" : r.bias === "Bearish" ? "down" : "flat";
   const dist = (p: number) => pct((p / ta.last - 1) * 100);
@@ -542,7 +590,13 @@ function OrbitRead({ ta, tf }: { ta: Analysis; tf: string }) {
           <div className="read-meter-track"><span style={{ left: `${(r.score + 100) / 2}%` }} /></div>
           <div className="read-meter-ends small"><span>Bearish</span><span>{r.score > 0 ? "+" : ""}{r.score}</span><span>Bullish</span></div>
         </div>
+        {onShare && (
+          <button className="share-btn" onClick={onShare}>
+            Share read
+          </button>
+        )}
       </div>
+      {shareMsg && <p className="muted small" style={{ margin: "8px 0 0" }}>{shareMsg}</p>}
       <div className="read-grid">
         <div>
           <span className="label">Key levels</span>
@@ -744,6 +798,67 @@ function UltraTeaser({ onSubscribe }: { onSubscribe?: () => void }) {
       <p className="small">
         <b>ORBIT Ultra</b>: 5m · 1h · 4h · 1D read on one screen, whale trades on the chart, unlimited alerts.
       </p>
+    </div>
+  );
+}
+
+type DevSwap = { ts: number; side: "BUY" | "SELL"; amount: number; sol: number; usd: number; signature: string };
+
+/** Pro: what the creator wallet has done with this coin */
+function DevPanel({ swaps, dev, onTrace }: { swaps: DevSwap[]; dev: string; onTrace?: (w: string) => void }) {
+  const day = Date.now() - 86_400_000;
+  const sold24 = swaps.filter((s) => s.side === "SELL" && s.ts > day).reduce((t, s) => t + s.usd, 0);
+  const soldAll = swaps.filter((s) => s.side === "SELL").reduce((t, s) => t + s.usd, 0);
+  const alarm = sold24 > 0;
+  return (
+    <div className={`devpanel ${alarm ? "alarm" : ""}`}>
+      <div className="whales-head">
+        <span className="label">Dev wallet</span>
+        <button className="mono small dev-addr" onClick={() => onTrace?.(dev)}>{dev.slice(0, 4)}…{dev.slice(-4)} →</button>
+      </div>
+      {swaps.length === 0 ? (
+        <p className="small muted">No buys or sells of this coin by the dev in their recent transactions.</p>
+      ) : (
+        <>
+          <p className={`small ${alarm ? "down" : ""}`}>
+            {alarm ? `The dev sold ${kusd(sold24)} of this coin in the last 24 hours.` : `No dev sells in the last 24 hours.`}
+            {soldAll > sold24 ? ` ${kusd(soldAll)} sold in total in recent history.` : ""}
+          </p>
+          <ul>
+            {swaps.slice(0, 5).map((s) => (
+              <li key={s.signature}>
+                <b className={s.side === "BUY" ? "up" : "down"}>{s.side}</b>
+                <span>{kusd(s.usd)}</span>
+                <span className="muted small">{when(Math.floor(s.ts / 1000))}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Ultra: how the ORBIT Read did on this coin's own history */
+function BacktestCard({ bt, tf }: { bt: Backtest; tf: string }) {
+  const row = (label: string, x: Backtest["bull"], good: "up" | "down") =>
+    x.n === 0 ? null : (
+      <div className="bt-row">
+        <span className={good}>{label}</span>
+        <div className="bt-bar"><i className={good} style={{ width: `${x.hit}%` }} /></div>
+        <b>{x.hit}%</b>
+        <span className="muted small">{x.n} reads · avg {x.avg > 0 ? "+" : ""}{x.avg.toFixed(1)}%</span>
+      </div>
+    );
+  return (
+    <div className="mtf bt">
+      <span className="label">Read track record · Ultra</span>
+      <p className="small muted" style={{ margin: "0 0 8px" }}>
+        The ORBIT Read replayed on this coin&apos;s {tf} history: how often price moved the way the read said over the next {bt.horizon} candles.
+      </p>
+      {row("Bullish reads", bt.bull, "up")}
+      {row("Bearish reads", bt.bear, "down")}
+      <p className="muted small" style={{ margin: "8px 0 0" }}>Past behaviour on one coin, not a promise.</p>
     </div>
   );
 }

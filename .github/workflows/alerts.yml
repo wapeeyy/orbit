@@ -1,0 +1,12 @@
+# Delivers ORBIT Ultra Telegram alerts: calls the cron endpoint every 5 minutes.
+name: ORBIT alerts
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - run: curl -fsS --max-time 90 https://www.orbitonsol.com/api/cron || true

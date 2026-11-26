@@ -12,6 +12,12 @@ import Wallet from "./Wallet";
 import Demo, { DemoTrade } from "./Demo";
 import ProLock, { usePro } from "./ProLock";
 import AlertWatcher from "./AlertWatcher";
+import RugCheck from "./RugCheck";
+import Watchlist, { WatchStar } from "./Watchlist";
+import Fresh from "./Fresh";
+import Insiders from "./Insiders";
+import Trade from "./Trade";
+import { SmartMoney } from "./Follow";
 import { TrialBanner } from "./Trial";
 import { Galaxy, Icon } from "./Cosmos";
 import type { TokenInfo } from "@/lib/info";
@@ -44,14 +50,14 @@ const short = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
 
 export default function Home() {
   const [tab, setTab] = useState<"scan" | "discover" | "wallet" | "demo" | "sub">("discover");
-  const [mode, setMode] = useState<"all" | "picks">("all");
+  const [mode, setMode] = useState<"all" | "picks" | "watch" | "fresh">("all");
   useEffect(() => {
     try {
       const m = localStorage.getItem("orbit.discover.mode");
-      if (m === "picks" || m === "all") setMode(m);
+      if (m === "picks" || m === "all" || m === "watch" || m === "fresh") setMode(m);
     } catch {}
   }, []);
-  const pickMode = (m: "all" | "picks") => {
+  const pickMode = (m: "all" | "picks" | "watch" | "fresh") => {
     setMode(m);
     try {
       localStorage.setItem("orbit.discover.mode", m);
@@ -71,8 +77,12 @@ export default function Home() {
   };
   const [scanCa, setScanCa] = useState<{ ca: string; n: number; free?: string } | null>(null);
   const [pro, setPro] = useState(false);
+  const [ultraHome, setUltraHome] = useState(false);
   useEffect(() => {
-    const sync = () => setPro(isActive());
+    const sync = () => {
+      setPro(isActive());
+      setUltraHome(keyTier() === "ultra");
+    };
     sync();
     return onKeyChange(sync);
   }, []);
@@ -137,9 +147,31 @@ export default function Home() {
           <button role="tab" aria-selected={mode === "picks"} className={mode === "picks" ? "on" : ""} onClick={() => pickMode("picks")}>
             ORBIT picks
           </button>
+          <button role="tab" aria-selected={mode === "fresh"} className={mode === "fresh" ? "on" : ""} onClick={() => pickMode("fresh")}>
+            Fresh
+          </button>
+          <button role="tab" aria-selected={mode === "watch"} className={mode === "watch" ? "on" : ""} onClick={() => pickMode("watch")}>
+            Watchlist
+          </button>
         </div>
         <div hidden={mode !== "all"}>
           <MarketList onOpen={(ca) => openCa(ca)} />
+        </div>
+        <div hidden={mode !== "fresh"}>
+          {mode === "fresh" &&
+            (pro ? (
+              <Fresh onOpen={(ca) => openCa(ca)} />
+            ) : (
+              <ProLock title="Fresh pairs are for Pro" text="Solana pairs 5–60 minutes old with a quick risk score, early buyers and sellers — before they trend." onSubscribe={goSub} />
+            ))}
+        </div>
+        <div hidden={mode !== "watch"}>
+          {mode === "watch" &&
+            (pro ? (
+              <Watchlist onOpen={(ca) => openCa(ca)} />
+            ) : (
+              <ProLock title="Watchlist is for Pro" text="Star any coin and follow its price, 24h change and liquidity in one place." onSubscribe={goSub} />
+            ))}
         </div>
         <div hidden={mode !== "picks"}>
           <Discover onSubscribe={goSub} onOpen={openCa} />
@@ -149,7 +181,8 @@ export default function Home() {
         <ScanView request={scanCa} onSubscribe={goSub} onTrace={trace} />
       </div>
       <div hidden={tab !== "wallet"}>
-        <Wallet request={walletReq} onOpen={(ca) => openCa(ca)} onSubscribe={goSub} />
+        {ultraHome && <SmartMoney onTrace={trace} onOpen={(ca) => openCa(ca)} />}
+        <Wallet request={walletReq} onOpen={(ca) => openCa(ca)} onSubscribe={goSub} ultra={ultraHome} />
       </div>
       <div hidden={tab !== "demo"}>
         {pro ? (
@@ -166,7 +199,7 @@ export default function Home() {
         <Subscribe />
       </div>
 
-      {pro && <AlertWatcher onOpen={(ca) => openCa(ca)} />}
+      {pro && <AlertWatcher onOpen={(ca) => openCa(ca)} ultra={ultraHome} />}
       <footer className="muted small">Data: DexScreener · Helius RPC. Not financial advice — DYOR.</footer>
     </main>
   );
@@ -269,6 +302,7 @@ function ScanView({
                 </h2>
                 <code className="ca">{data.ca}</code>
               </div>
+              {m && <WatchStar w={{ ca: data.ca, symbol: m.symbol, name: m.name, image: m.image }} pro={pro} onSubscribe={onSubscribe} />}
               {m?.url && (
                 <a href={m.url} target="_blank" rel="noreferrer" className="ext">
                   DexScreener ↗
@@ -299,6 +333,7 @@ function ScanView({
                 free={free}
                 onExtra={setExtra}
               />
+              <RugCheck key={"rug-" + data.ca} ca={data.ca} />
               {m && <DemoTrade key={"demo-" + data.ca} ca={data.ca} symbol={m.symbol} name={m.name} image={m.image} priceSol={m.priceSol} />}
             </>
           ) : (
@@ -312,7 +347,29 @@ function ScanView({
           <About key={"about-" + data.ca} ca={data.ca} free={free} onInfo={setInfo} />
 
           {m?.pairAddress && (
-            <Chart key={m.pairAddress} pool={m.pairAddress} token={data.ca} symbol={m.symbol} pro={pro} ultra={ultra} onSubscribe={onSubscribe} onTrace={onTrace} />
+            <Chart key={m.pairAddress} pool={m.pairAddress} token={data.ca} symbol={m.symbol} pro={pro} ultra={ultra} dev={info?.dev ?? null} onSubscribe={onSubscribe} onTrace={onTrace} />
+          )}
+
+          {ultra && m && h ? (
+            <Trade key={"trade-" + data.ca} ca={data.ca} symbol={m.symbol} decimals={h.decimals} />
+          ) : (
+            pro && m && (
+              <div className="card locked-cta" onClick={onSubscribe}>
+                <b>Buy & sell from your wallet · Ultra</b>
+                <span className="muted small">Trade this coin through Jupiter without leaving ORBIT. You sign in your own wallet.</span>
+              </div>
+            )
+          )}
+
+          {ultra ? (
+            <Insiders key={"ins-" + data.ca} ca={data.ca} onTrace={onTrace} />
+          ) : (
+            pro && (
+              <div className="card locked-cta" onClick={onSubscribe}>
+                <b>Holder flow & launch bundles · Ultra</b>
+                <span className="muted small">See which top holders added or cut in the last hour and day, and how much supply was bundled in the first blocks.</span>
+              </div>
+            )
           )}
 
           <section className="card">

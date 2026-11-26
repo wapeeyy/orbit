@@ -1,5 +1,6 @@
 "use client";
 
+import { FollowButton } from "./Follow";
 import { useEffect, useState } from "react";
 import type { WalletReport } from "@/lib/wallet";
 import { CopyButton } from "./Copy";
@@ -24,10 +25,12 @@ export default function Wallet({
   request,
   onOpen,
   onSubscribe,
+  ultra = false,
 }: {
   request: { address: string; n: number } | null;
   onOpen: (ca: string) => void;
   onSubscribe: () => void;
+  ultra?: boolean;
 }) {
   const [addr, setAddr] = useState("");
   const [data, setData] = useState<WalletReport | null>(null);
@@ -121,6 +124,7 @@ export default function Wallet({
                 <code className="ca">{d.address}</code>
               </div>
               <div className="buy" style={{ marginTop: 0 }}>
+                <FollowButton address={d.address} ultra={ultra} onSubscribe={onSubscribe} />
                 <CopyButton text={d.address} label="Copy" />
                 <a className="buy-link" href={`https://gmgn.ai/sol/address/${d.address}`} target="_blank" rel="noreferrer">GMGN ↗</a>
                 <a className="buy-link" href={`https://solscan.io/account/${d.address}`} target="_blank" rel="noreferrer">Solscan ↗</a>
