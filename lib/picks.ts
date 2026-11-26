@@ -36,12 +36,17 @@ const SOL = "So11111111111111111111111111111111111111112";
 const H = { accept: "application/json" };
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// time budget per refresh so the serverless call always finishes inside its limit
+let deadline = Infinity;
+const left = () => deadline - Date.now();
 async function gt(path: string) {
   for (let i = 0; i < 3; i++) {
-    const r = await fetch(GT + path, { headers: H, cache: "no-store" });
+    const r = await fetch(GT + path, { headers: H, cache: "no-store", signal: AbortSignal.timeout(Math.max(1000, Math.min(10_000, left()))) });
     if (r.ok) return r.json();
     if (r.status !== 429) throw new Error(`GeckoTerminal ${r.status}`);
-    await wait(2500 * (i + 1));
+    const ms = 2500 * (i + 1);
+    if (left() < ms + 3000) break;
+    await wait(ms);
   }
   throw new Error("GeckoTerminal busy");
 }
@@ -101,7 +106,7 @@ async function candles(pool: string, ca: string, frame: string, agg: number, lim
 }
 
 async function quote(i: string, o: string, amt: string) {
-  const r = await fetch(`https://lite-api.jup.ag/swap/v1/quote?inputMint=${i}&outputMint=${o}&amount=${amt}&slippageBps=1000&restrictIntermediateTokens=true`, { cache: "no-store" });
+  const r = await fetch(`https://lite-api.jup.ag/swap/v1/quote?inputMint=${i}&outputMint=${o}&amount=${amt}&slippageBps=1000&restrictIntermediateTokens=true`, { cache: "no-store", signal: AbortSignal.timeout(8000) });
   const j = await r.json();
   if (!r.ok || !j.outAmount) throw new Error("no route");
   return j as { outAmount: string };
@@ -113,7 +118,7 @@ async function roundTripLoss(ca: string) {
 }
 
 async function rugcheck(ca: string): Promise<{ danger: string[]; score: number | null }> {
-  const r = await fetch(`https://api.rugcheck.xyz/v1/tokens/${ca}/report/summary`, { cache: "no-store" });
+  const r = await fetch(`https://api.rugcheck.xyz/v1/tokens/${ca}/report/summary`, { cache: "no-store", signal: AbortSignal.timeout(8000) });
   if (!r.ok) throw new Error("rugcheck");
   const j = await r.json();
   return { danger: (j.risks ?? []).filter((x: { level: string }) => x.level === "danger").map((x: { name: string }) => x.name), score: j.score_normalised ?? null };
@@ -157,7 +162,7 @@ async function deepCheck(c: Cand, kind: Kind): Promise<Pick | null> {
   if (!pass("No red flags", !!rc && rc.danger.length === 0, rc ? (rc.danger.length ? rc.danger.join(", ") : "RugCheck: no danger flags") : "RugCheck unavailable")) return null;
 
   // 5. holder concentration
-  const hold = await getHolders(c.ca, { [c.pool]: "pool" }).catch(() => null);
+  const hold = await Promise.race([getHolders(c.ca, { [c.pool]: "pool" }), wait(12_000).then(() => null)]).catch(() => null);
   const top10 = hold?.top10Pct ?? null;
   const relax = process.env.PICKS_RELAX_HOLDERS === "1";
   if (!pass("Holders spread", top10 != null ? top10 < (kind === "scalp" ? 30 : 25) : relax, top10 != null ? `Top 10 hold ${top10.toFixed(1)}%` : "Holder data unavailable")) return null;
@@ -181,13 +186,18 @@ async function deepCheck(c: Cand, kind: Kind): Promise<Pick | null> {
 }
 
 /** Rebuild one list; keeps the original pick time / price for coins that stay on it */
-export async function refreshPicks(kind: Kind): Promise<PicksState> {
+export async function refreshPicks(kind: Kind, budgetMs = 45_000): Promise<PicksState> {
+  deadline = Date.now() + budgetMs;
   const all = await candidates();
   const shortlist = prefilter(all, kind);
   const prev = await readPicks(kind);
   const out: Pick[] = [];
   const failed: Record<string, number> = {};
   for (const c of shortlist) {
+    if (left() < 8000) {
+      failed["Not checked yet"] = (failed["Not checked yet"] ?? 0) + 1;
+      continue;
+    }
     try {
       const p = await deepCheck(c, kind);
       if (!p) failed[lastFail] = (failed[lastFail] ?? 0) + 1;
