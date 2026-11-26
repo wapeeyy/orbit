@@ -22,7 +22,7 @@ export async function GET(req: Request) {
   const r = await fetch(`https://api.telegram.org/bot${t}/setWebhook`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ url: "https://www.orbitonsol.com/api/tg/hook", secret_token: tgHookSecret(), allowed_updates: ["message"] }),
+    body: JSON.stringify({ url: "https://www.orbitonsol.com/api/tg/hook", secret_token: tgHookSecret(), allowed_updates: ["message", "channel_post", "chat_join_request"] }),
   });
   return NextResponse.json(await r.json());
 }

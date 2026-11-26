@@ -90,6 +90,12 @@ export default function Home() {
   // Link aktivasi: /?kod=KOD_AKSES → simpan kod, buang dari URL, buka tab Langgan
   useEffect(() => {
     const url = new URL(window.location.href);
+    const deepCa = url.searchParams.get("ca");
+    if (deepCa && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(deepCa)) {
+      url.searchParams.delete("ca");
+      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+      openCa(deepCa);
+    }
     if (url.searchParams.get("tab") === "sub") {
       setTab("sub");
       url.searchParams.delete("tab");

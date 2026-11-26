@@ -1,12 +1,22 @@
-# Delivers ORBIT Ultra Telegram alerts: calls the cron endpoint every 5 minutes.
+# Delivers ORBIT Telegram alerts: each run calls the cron endpoint once a minute for ~5 minutes,
+# and a new run starts every 5 minutes, so alerts go out roughly every minute.
 name: ORBIT alerts
 on:
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
+concurrency:
+  group: orbit-alerts
+  cancel-in-progress: false
 jobs:
   tick:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 7
     steps:
-      - run: curl -fsS --max-time 90 https://www.orbitonsol.com/api/cron || true
+      - name: Tick every minute
+        run: |
+          for i in 1 2 3 4 5; do
+            curl -fsS --max-time 55 https://www.orbitonsol.com/api/cron || true
+            echo
+            [ "$i" -lt 5 ] && sleep 58
+          done

@@ -7,7 +7,7 @@ import { CopyButton } from "./Copy";
 import { api, getKey, keyExpiry, onKeyChange, setKey } from "./key";
 import { ADMIN_WA_DISPLAY, adminWa } from "./contact";
 import PlanCards from "./PlanCards";
-import TelegramCard from "./Telegram";
+import TelegramCard, { CommunityCard } from "./Telegram";
 import { TrialCard, useTrial } from "./Trial";
 import { trialKey } from "./trial";
 import { PROMO_USD, TRIAL_ULTRA_USD } from "@/lib/trial";
@@ -148,6 +148,7 @@ export default function Subscribe() {
       {!active && <RestoreKey onDone={load} />}
 
       {active && tier === "ultra" && <TelegramCard />}
+      <CommunityCard />
 
       <a className="buy-link guide-link" href="/orbit-guide.pdf" target="_blank" rel="noreferrer">
         Guide: subscribe, pay &amp; install the app (PDF) ↗

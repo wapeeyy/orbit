@@ -739,3 +739,13 @@ footer { font-family: var(--narrow); letter-spacing: 0.16em; text-transform: upp
 .slip.on { color: var(--gold); }
 .trade-quote { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #0b0d15; margin-bottom: 10px; }
 .trade-quote .down { color: var(--danger); }
+
+/* telegram prefs + community */
+.tg-prefs { margin-top: 12px; display: grid; gap: 6px; }
+.tg-prefs .label { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); }
+.tg-check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.tg-check input { accent-color: #f3d9a4; width: 16px; height: 16px; }
+.tg-check select { background: #0b0d15; border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 3px 6px; }
+.community-card { display: grid; gap: 4px; text-decoration: none; color: var(--text); border-color: rgba(106,179,243,0.45); background: radial-gradient(ellipse at top right, rgba(106,179,243,0.12), rgba(0,0,0,0.6) 60%); margin-bottom: 12px; }
+.community-card .label { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: #6ab3f3; }
+.community-card b { font-weight: 500; font-size: 16px; }

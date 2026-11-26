@@ -20,6 +20,12 @@ function save(l: Watched[]) {
   } catch {}
   listeners.forEach((f) => f());
 }
+export function onWatchChange(f: () => void) {
+  listeners.add(f);
+  return () => {
+    listeners.delete(f);
+  };
+}
 export const isWatched = (ca: string) => getWatch().some((w) => w.ca === ca);
 export function toggleWatch(w: Omit<Watched, "added">) {
   const l = getWatch();
