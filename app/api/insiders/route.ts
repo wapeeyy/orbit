@@ -4,7 +4,7 @@ import { isValidMint } from "@/lib/holders";
 import { bundleCheck, holderFlow } from "@/lib/insiders";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 45;
+export const maxDuration = 60;
 
 /** Ultra: holder flow (1 h / 24 h) + launch bundle check for ?ca= */
 export async function GET(req: Request) {

@@ -64,11 +64,11 @@ export async function bundleCheck(ca: string, holders: { owner: string; pct: num
       return summarise(b.launchSlot, new Set(b.early), holders);
     }
   }
-  // walk back to the mint's first transactions (max 8 × 1000 signatures)
+  // walk back to the mint's first transactions (max 15 × 1000 signatures)
   let before: string | undefined;
   let oldest: Sig[] = [];
   let reached = false;
-  for (let page = 0; page < 8; page++) {
+  for (let page = 0; page < 15; page++) {
     const sigs = await rpc<Sig[]>("getSignaturesForAddress", [ca, { limit: 1000, ...(before ? { before } : {}) }]);
     if (!sigs.length) {
       reached = true;
