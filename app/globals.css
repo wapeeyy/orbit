@@ -531,8 +531,8 @@ footer { font-family: var(--narrow); letter-spacing: 0.16em; text-transform: upp
 @media (max-width: 720px) { .read-grid { grid-template-columns: 1fr; } }
 .chart-card .section-head { gap: 10px; }
 .full-btn { margin-left: auto; border: 1px solid var(--line); background: rgba(0,0,0,0.5); color: var(--text); font-size: 11px; letter-spacing: 0.08em; padding: 6px 10px; border-radius: 8px; cursor: pointer; }
-.chart-card.full { position: fixed; inset: 0; z-index: 1000; margin: 0; border-radius: 0; overflow-y: auto; background: #000; padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) 10px max(10px, env(safe-area-inset-left)); }
-.chart-card.full .insights, .chart-card.full .range { display: none; }
+.chart-card.is-full { position: fixed; inset: 0; z-index: 1000; margin: 0; border-radius: 0; overflow-y: auto; background: #000; padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) 10px max(10px, env(safe-area-inset-left)); }
+.chart-card.is-full .insights, .chart-card.is-full .range { display: none; }
 .full-hint { text-align: center; }
 .layers button.locked { opacity: 0.6; }
 .locked-read { cursor: pointer; text-align: left; }
@@ -825,3 +825,23 @@ footer { font-family: var(--narrow); letter-spacing: 0.16em; text-transform: upp
 body.has-install main { padding-bottom: 110px; }
 .brand .hero-title { font-family: var(--display); font-weight: 300; font-size: clamp(30px, 8.4vw, 46px); line-height: 1.1; letter-spacing: 0.01em; padding-left: 0; text-transform: none; margin: 0; }
 .sticky-cta .trial-cta-btn.sm { font-size: 10.5px; letter-spacing: 0.12em; padding: 10px 14px; min-height: 40px; }
+
+/* page never zooms; the chart keeps its own pinch-zoom */
+html, body { touch-action: pan-x pan-y; -webkit-text-size-adjust: 100%; }
+.chart-wrap, .chart-wrap * { touch-action: none; }
+.chart-card.is-full .chart-wrap { touch-action: none; }
+
+/* full-screen chart: clear way out */
+.chart-card.is-full .section-head .full-btn { visibility: hidden; }
+.full-close { position: fixed; z-index: 1200; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); display: inline-flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 18px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.4); background: rgba(0,0,0,0.85); color: #fff; font-family: var(--narrow); font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; cursor: pointer; box-shadow: 0 8px 24px rgba(0,0,0,0.6); backdrop-filter: blur(6px); }
+.full-close span { font-size: 15px; }
+.full-tip { position: fixed; z-index: 1300; left: 50%; top: max(70px, calc(env(safe-area-inset-top) + 66px)); transform: translateX(-50%); width: min(92vw, 440px); display: flex; gap: 12px; align-items: flex-start; padding: 14px 14px 18px 16px; border-radius: 14px; background: #0b0d15; border: 1px solid rgba(243,217,164,0.5); box-shadow: 0 20px 60px rgba(0,0,0,0.7); overflow: hidden; animation: tipin 0.25s ease; }
+.full-tip > div { display: grid; gap: 4px; font-size: 13px; color: var(--muted); line-height: 1.4; }
+.full-tip > div > b { color: var(--gold); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 500; }
+.full-tip > div b { color: var(--text); font-weight: 600; }
+.full-tip button { flex: none; width: 40px; height: 40px; margin: -6px -4px 0 0; border: 0; background: transparent; color: var(--faint); font-size: 15px; cursor: pointer; }
+.full-tip-bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--gold); transform-origin: left; animation: tipbar 5s linear forwards; }
+@keyframes tipbar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@keyframes tipin { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.full-tip, .full-tip * { font-family: var(--display); }
+.full-tip > div > b { font-family: var(--narrow); }

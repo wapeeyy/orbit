@@ -157,6 +157,13 @@ export default function Chart({
   const [shareMsg, setShareMsg] = useState<string | null>(null);
   const wrap = useRef<HTMLElement>(null);
   const [full, setFull] = useState(false);
+  const [fullTip, setFullTip] = useState(false);
+  useEffect(() => {
+    if (!full) return setFullTip(false);
+    setFullTip(true);
+    const t = setTimeout(() => setFullTip(false), 5000);
+    return () => clearTimeout(t);
+  }, [full]);
   const [whales, setWhales] = useState<WhaleTrade[] | null>(null);
   const [devSwaps, setDevSwaps] = useState<DevSwap[] | null>(null);
   useEffect(() => {
@@ -497,7 +504,7 @@ export default function Chart({
   const span = TFS.find((x) => x.id === tf)!.span;
 
   return (
-    <section ref={wrap} className={`card chart-card ${full ? "full" : ""}`}>
+    <section ref={wrap} className={`card chart-card ${full ? "is-full" : ""}`}>
       <div className="section-head">
         <h3>Chart</h3>
         <button className="full-btn" onClick={() => (full ? exitFull() : enterFull())} title={full ? "Exit full screen" : "Full screen"}>
@@ -528,7 +535,25 @@ export default function Chart({
         <canvas ref={overlay} className="chart-overlay" />
       </div>
 
-      {full && <p className="muted small full-hint">Tip: turn your phone sideways for a wider chart.</p>}
+      {full && (
+        <button className="full-close" onClick={exitFull} aria-label="Close full screen">
+          <span aria-hidden="true">✕</span> Close
+        </button>
+      )}
+      {full && fullTip && (
+        <div className="full-tip" role="status">
+          <div>
+            <b>Full screen chart</b>
+            <span>
+              Tap <b>Close</b> at the top right to go back. Pinch to zoom the chart, drag to move it. Turn your phone sideways for a wider view.
+            </span>
+          </div>
+          <button onClick={() => setFullTip(false)} aria-label="Dismiss">
+            ✕
+          </button>
+          <i className="full-tip-bar" />
+        </div>
+      )}
       {pro && dev && devSwaps && <DevPanel swaps={devSwaps} dev={dev} onTrace={onTrace} />}
       {ta && pro && <OrbitRead ta={ta} tf={tf} onShare={share} shareMsg={shareMsg} />}
       {ultra && bt && bt.samples >= 5 && <BacktestCard bt={bt} tf={tf} />}
