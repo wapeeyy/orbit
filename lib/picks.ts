@@ -29,6 +29,7 @@ export type Pick = {
   pickedPrice: number;
 };
 export type Closed = { kind: Kind; ca: string; symbol: string; entry: number; exit: number; pct: number; result: "target" | "stop" | "expired"; at: number; closedAt: number };
+export type Removed = { pick: Pick; why: string };
 export type PicksState = { at: number; picks: Pick[]; scanned: number; passed: number; shortlisted?: number; failed?: Record<string, number> };
 
 const GT = "https://api.geckoterminal.com/api/v2/networks/solana";
@@ -140,12 +141,17 @@ const pct = (a: number, b: number) => (a / b - 1) * 100;
 
 /** Strict checks: every one must pass for the coin to be listed */
 let lastFail = "";
+let lastWhy = "";
 async function deepCheck(c: Cand, kind: Kind): Promise<Pick | null> {
   const checks: Check[] = [];
   lastFail = "Chart data";
+  lastWhy = "Not enough chart data";
   const pass = (k: string, ok: boolean, v: string) => {
     checks.push({ k, ok, v });
-    if (!ok) lastFail = k;
+    if (!ok) {
+      lastFail = k;
+      lastWhy = `${k}: ${v}`;
+    }
     return ok || process.env.PICKS_DEMO === "1"; // demo mode (local previews only): run every check and show the result
   };
 
@@ -203,7 +209,7 @@ async function deepCheck(c: Cand, kind: Kind): Promise<Pick | null> {
   };
 }
 
-type Job = { kind: Kind; started: number; scanned: number; queue: Cand[]; tries: Record<string, number>; out: Pick[]; failed: Record<string, number> };
+type Job = { kind: Kind; started: number; scanned: number; queue: Cand[]; tries: Record<string, number>; out: Pick[]; failed: Record<string, number>; why?: Record<string, string> };
 
 /** True while a rebuild is part-way through (it continues on the next call) */
 export async function jobRunning(kind: Kind) {
@@ -215,7 +221,7 @@ export async function jobRunning(kind: Kind) {
  * time budget runs out and saves progress; coins whose data failed go back in the queue (up to 3 tries).
  * The published list only changes once the whole shortlist is done. Keeps the original pick time / price.
  */
-export async function refreshPicks(kind: Kind, budgetMs = 45_000): Promise<PicksState & { done: boolean; fresh?: Pick[] }> {
+export async function refreshPicks(kind: Kind, budgetMs = 45_000): Promise<PicksState & { done: boolean; fresh?: Pick[]; removed?: Removed[] }> {
   deadline = Date.now() + budgetMs;
   const jk = `picks:job:${kind}`;
   const saved = kvConfigured() ? await kvGet(jk) : null;
@@ -232,7 +238,10 @@ export async function refreshPicks(kind: Kind, budgetMs = 45_000): Promise<Picks
     try {
       const p = await deepCheck(c, kind);
       if (p) job.out.push(p);
-      else job.failed[lastFail] = (job.failed[lastFail] ?? 0) + 1;
+      else {
+        job.failed[lastFail] = (job.failed[lastFail] ?? 0) + 1;
+        (job.why ??= {})[c.ca] = lastWhy;
+      }
     } catch {
       job.tries[c.ca] = (job.tries[c.ca] ?? 0) + 1;
       if (job.tries[c.ca] < 3) job.queue.push(c);
@@ -251,6 +260,10 @@ export async function refreshPicks(kind: Kind, budgetMs = 45_000): Promise<Picks
   const prev = await readPicks(kind);
   const out = job.out;
   const fresh = out.filter((p) => !prev?.picks.some((x) => x.ca === p.ca));
+  // coins that were listed but no longer pass: say which check they now fail
+  const removed: Removed[] = (prev?.picks ?? [])
+    .filter((p) => !out.some((x) => x.ca === p.ca))
+    .map((p) => ({ pick: p, why: job.why?.[p.ca] ?? "Market filters: volume, buyers or price move no longer strong enough" }));
   for (const p of out) {
     const old = prev?.picks.find((x) => x.ca === p.ca);
     if (old) {
@@ -265,7 +278,7 @@ export async function refreshPicks(kind: Kind, budgetMs = 45_000): Promise<Picks
     // open a track-record entry for every new pick
     for (const p of out) await kvPipeline([["SET", `picks:open:${kind}:${p.ca}`, JSON.stringify({ kind, ca: p.ca, symbol: p.symbol, entry: p.pickedPrice, target: p.target, stop: p.stop, at: p.pickedAt }), "NX"]]);
   }
-  return { ...state, done, fresh };
+  return { ...state, done, fresh, removed };
 }
 
 export async function readPicks(kind: Kind): Promise<PicksState | null> {
@@ -275,8 +288,9 @@ export async function readPicks(kind: Kind): Promise<PicksState | null> {
 }
 
 /** Close open picks that hit target / stop or ran out of time (called with fresh prices) */
-export async function settlePicks(prices: Map<string, number>) {
-  if (!kvConfigured()) return;
+export async function settlePicks(prices: Map<string, number>): Promise<Closed[]> {
+  const done: Closed[] = [];
+  if (!kvConfigured()) return done;
   for (const kind of ["scalp", "hold"] as Kind[]) {
     const [keys] = (await kvPipeline([["KEYS", `picks:open:${kind}:*`]])) as [string[]];
     for (const key of keys ?? []) {
@@ -290,8 +304,16 @@ export async function settlePicks(prices: Map<string, number>) {
       const exit = now ?? o.entry;
       const closed: Closed = { kind, ca: o.ca, symbol: o.symbol, entry: o.entry, exit, pct: pct(exit, o.entry), result, at: o.at, closedAt: Date.now() };
       await kvPipeline([["LPUSH", `picks:closed:${kind}`, JSON.stringify(closed)], ["LTRIM", `picks:closed:${kind}`, 0, 199], ["DEL", key]]);
+      done.push(closed);
+      // target, stop or time reached: take the coin off the live list now, not at the next rebuild
+      const st = await readPicks(kind);
+      if (st?.picks.some((p) => p.ca === o.ca)) {
+        const picks = st.picks.filter((p) => p.ca !== o.ca);
+        await kvPipeline([["SET", `picks:${kind}`, JSON.stringify({ ...st, picks, passed: picks.length })]]);
+      }
     }
   }
+  return done;
 }
 
 export async function trackRecord(kind: Kind) {

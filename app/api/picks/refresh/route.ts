@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { kvConfigured, kvGet, kvPipeline } from "@/lib/kv";
 import { dexInfo } from "@/lib/marketwatch";
-import { notifyNewPicks } from "@/lib/picknotify";
+import { notifyClosed, notifyNewPicks, notifyRemoved } from "@/lib/picknotify";
 import { jobRunning, openPickCas, refreshPicks, settlePicks, type Kind } from "@/lib/picks";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +20,8 @@ export async function GET() {
     const cas = await openPickCas();
     if (cas.length) {
       const info = await dexInfo(cas);
-      await settlePicks(new Map([...info].map(([ca, d]) => [ca, d.price])));
+      const closed = await settlePicks(new Map([...info].map(([ca, d]) => [ca, d.price])));
+      if (closed.length) out.closed = await notifyClosed(closed).catch(() => 0);
     }
     const now = Date.now();
     const age = async (k: string) => now - Number((await kvGet(`picks:${k}:built`)) ?? 0);
@@ -31,6 +32,7 @@ export async function GET() {
       const s = await refreshPicks(kind, 40_000);
       if (s.done) await kvPipeline([["SET", `picks:${kind}:built`, String(now)]]);
       if (s.fresh?.length) out.notified = await notifyNewPicks(s.fresh).catch(() => 0);
+      if (s.removed?.length) out.removed = await notifyRemoved(s.removed).catch(() => 0);
       out[kind] = { done: s.done, scanned: s.scanned, shortlisted: s.shortlisted, passed: s.passed, failed: s.failed };
     }
   } catch (e) {
