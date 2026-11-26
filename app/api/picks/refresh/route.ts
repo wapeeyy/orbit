@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { kvConfigured, kvGet, kvPipeline } from "@/lib/kv";
 import { dexInfo } from "@/lib/marketwatch";
-import { openPickCas, refreshPicks, settlePicks } from "@/lib/picks";
+import { jobRunning, openPickCas, refreshPicks, settlePicks, type Kind } from "@/lib/picks";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -23,14 +23,13 @@ export async function GET() {
     }
     const now = Date.now();
     const age = async (k: string) => now - Number((await kvGet(`picks:${k}:built`)) ?? 0);
-    if ((await age("hold")) > 6 * 3_600_000) {
-      const s = await refreshPicks("hold");
-      await kvPipeline([["SET", "picks:hold:built", String(now)]]);
-      out.hold = { scanned: s.scanned, passed: s.passed };
-    } else if ((await age("scalp")) > 5 * 60_000) {
-      const s = await refreshPicks("scalp");
-      await kvPipeline([["SET", "picks:scalp:built", String(now)]]);
-      out.scalp = { scanned: s.scanned, passed: s.passed };
+    // finish a rebuild in progress first, otherwise start whichever list is due
+    let kind: Kind | null = (await jobRunning("hold")) ? "hold" : (await jobRunning("scalp")) ? "scalp" : null;
+    if (!kind) kind = (await age("hold")) > 6 * 3_600_000 ? "hold" : (await age("scalp")) > 5 * 60_000 ? "scalp" : null;
+    if (kind) {
+      const s = await refreshPicks(kind, 40_000);
+      if (s.done) await kvPipeline([["SET", `picks:${kind}:built`, String(now)]]);
+      out[kind] = { done: s.done, scanned: s.scanned, shortlisted: s.shortlisted, passed: s.passed, failed: s.failed };
     }
   } catch (e) {
     out.error = (e as Error).message;

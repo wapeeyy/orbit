@@ -60,8 +60,16 @@ type Cand = {
 
 async function candidates(): Promise<Cand[]> {
   const out = new Map<string, Cand>();
-  for (const path of ["/trending_pools?page=1", "/trending_pools?page=2", "/pools?sort=h24_volume_usd_desc&page=1"]) {
-    const j = await gt(`${path}&include=base_token`);
+  for (const [path, key] of [["/trending_pools?page=1", "pairs:trending:1"], ["/trending_pools?page=2", "pairs:trending:2"], ["/pools?sort=h24_volume_usd_desc&page=1", "pairs:volume:1"]]) {
+    // same lists the Discover table caches: reuse them so GeckoTerminal is called less
+    const hit = kvConfigured() ? await kvGet(key).catch(() => null) : null;
+    let j;
+    try {
+      j = hit ? JSON.parse(hit) : await gt(`${path}&include=base_token,dex`);
+      if (!hit && kvConfigured()) await kvPipeline([["SET", key, JSON.stringify(j), "EX", 45]]).catch(() => {});
+    } catch {
+      continue;
+    }
     const toks = new Map<string, { address: string; symbol: string; image_url?: string }>((j.included ?? []).map((t: { id: string; attributes: { address: string; symbol: string; image_url?: string } }) => [t.id, t.attributes]));
     for (const p of j.data ?? []) {
       const a = p.attributes;
@@ -78,8 +86,9 @@ async function candidates(): Promise<Cand[]> {
         vol: { h1: n(a.volume_usd?.h1), h24: n(a.volume_usd?.h24) },
       });
     }
-    await wait(600);
+    if (!hit) await wait(600);
   }
+  if (!out.size) throw new Error("No market data");
   return [...out.values()];
 }
 
@@ -90,18 +99,21 @@ function prefilter(c: Cand[], kind: Kind) {
       .filter((x) => x.liq >= 30_000 && x.ageDays >= 2 / 24 && x.vol.h1 >= 20_000 && x.tx.h1.buyers >= 40 && x.tx.h1.buys >= x.tx.h1.sells * 1.2 && x.tx.m5.buys >= x.tx.m5.sells && x.ch.h1 > 1 && x.ch.h1 < 60)
       .map((x) => ({ x, s: (x.tx.h1.buys / Math.max(1, x.tx.h1.sells)) * Math.log10(x.vol.h1) }))
       .sort((a, b) => b.s - a.s)
-      .slice(0, 7)
+      .slice(0, 10)
       .map((y) => y.x);
   return c
     .filter((x) => x.liq >= 150_000 && x.ageDays >= 7 && (x.mc ?? 0) >= 1e6 && (x.mc ?? 0) <= 300e6 && x.vol.h24 >= 200_000 && x.tx.h24.buyers >= 300 && x.ch.h24 > -15 && x.ch.h24 < 60 && x.tx.h24.buyers >= x.tx.h24.sellers)
     .map((x) => ({ x, s: (x.tx.h24.buyers / Math.max(1, x.tx.h24.sellers)) * Math.log10(x.liq) }))
     .sort((a, b) => b.s - a.s)
-    .slice(0, 7)
+    .slice(0, 10)
     .map((y) => y.x);
 }
 
 async function candles(pool: string, ca: string, frame: string, agg: number, limit: number): Promise<Candle[]> {
-  const j = await gt(`/pools/${pool}/ohlcv/${frame}?aggregate=${agg}&limit=${limit}&currency=usd&token=${ca}`);
+  const key = `cndl:${pool}:${frame}${agg}`;
+  const hit = kvConfigured() ? await kvGet(key).catch(() => null) : null;
+  const j = hit ? JSON.parse(hit) : await gt(`/pools/${pool}/ohlcv/${frame}?aggregate=${agg}&limit=${limit}&currency=usd&token=${ca}`);
+  if (!hit && kvConfigured()) await kvPipeline([["SET", key, JSON.stringify(j), "EX", frame === "minute" ? 240 : 1800]]).catch(() => {});
   return ((j?.data?.attributes?.ohlcv_list ?? []) as number[][]).map(([t, o, h, l, c, v]) => ({ t, o, h, l, c, v })).sort((a, b) => a.t - b.t);
 }
 
@@ -138,13 +150,19 @@ async function deepCheck(c: Cand, kind: Kind): Promise<Pick | null> {
   };
 
   // 1. chart read
-  const cs = kind === "scalp" ? await candles(c.pool, c.ca, "minute", 15, 192) : await candles(c.pool, c.ca, "hour", 4, 180);
+  let tf = kind === "scalp" ? "15m" : "4h";
+  let cs = kind === "scalp" ? await candles(c.pool, c.ca, "minute", 15, 192) : await candles(c.pool, c.ca, "hour", 4, 180);
+  if (cs.length < 40) {
+    // young coin: drop to a shorter timeframe before giving up
+    tf = kind === "scalp" ? "5m" : "1h";
+    cs = kind === "scalp" ? await candles(c.pool, c.ca, "minute", 5, 288) : await candles(c.pool, c.ca, "hour", 1, 400);
+  }
   if (cs.length < 40) return null;
   const ta = analyse(cs);
   const r = ta.read;
   const last = ta.last;
   const vwap = ta.vwap[ta.vwap.length - 1];
-  if (!pass("Chart bias", r.bias === "Bullish" || (kind === "hold" && r.bias === "Ranging" && r.score >= 10), `${r.bias} ${r.score > 0 ? "+" : ""}${r.score} on ${kind === "scalp" ? "15m" : "4h"}`)) return null;
+  if (!pass("Chart bias", r.bias === "Bullish" || (kind === "hold" && r.bias === "Ranging" && r.score >= 10), `${r.bias} ${r.score > 0 ? "+" : ""}${r.score} on ${tf}`)) return null;
   if (!pass("Not overheated", (r.rsi ?? 50) < 75, `RSI ${(r.rsi ?? 0).toFixed(0)}`)) return null;
   if (kind === "scalp" && !pass("Above VWAP", last > vwap, "Buyers in control of the session")) return null;
 
@@ -185,44 +203,68 @@ async function deepCheck(c: Cand, kind: Kind): Promise<Pick | null> {
   };
 }
 
-/** Rebuild one list; keeps the original pick time / price for coins that stay on it */
-export async function refreshPicks(kind: Kind, budgetMs = 45_000): Promise<PicksState> {
+type Job = { kind: Kind; started: number; scanned: number; queue: Cand[]; tries: Record<string, number>; out: Pick[]; failed: Record<string, number> };
+
+/** True while a rebuild is part-way through (it continues on the next call) */
+export async function jobRunning(kind: Kind) {
+  return kvConfigured() && !!(await kvGet(`picks:job:${kind}`));
+}
+
+/**
+ * Rebuild one list. The strict checks are spread over several calls: each call checks coins until its
+ * time budget runs out and saves progress; coins whose data failed go back in the queue (up to 3 tries).
+ * The published list only changes once the whole shortlist is done. Keeps the original pick time / price.
+ */
+export async function refreshPicks(kind: Kind, budgetMs = 45_000): Promise<PicksState & { done: boolean }> {
   deadline = Date.now() + budgetMs;
-  const all = await candidates();
-  const shortlist = prefilter(all, kind);
-  const prev = await readPicks(kind);
-  const out: Pick[] = [];
-  const failed: Record<string, number> = {};
-  for (const c of shortlist) {
-    if (left() < 8000) {
-      failed["Not checked yet"] = (failed["Not checked yet"] ?? 0) + 1;
-      continue;
-    }
+  const jk = `picks:job:${kind}`;
+  const saved = kvConfigured() ? await kvGet(jk) : null;
+  let job: Job;
+  if (saved) job = JSON.parse(saved);
+  else {
+    const all = await candidates();
+    job = { kind, started: Date.now(), scanned: all.length, queue: prefilter(all, kind), tries: {}, out: [], failed: {} };
+    (job as Job & { size: number }).size = job.queue.length;
+  }
+  const size = (job as Job & { size?: number }).size ?? job.queue.length;
+  while (job.queue.length && job.out.length < 5 && left() > 10_000) {
+    const c = job.queue.shift()!;
     try {
       const p = await deepCheck(c, kind);
-      if (!p) failed[lastFail] = (failed[lastFail] ?? 0) + 1;
-      if (p) {
-        const old = prev?.picks.find((x) => x.ca === p.ca);
-        if (old) {
-          p.pickedAt = old.pickedAt;
-          p.pickedPrice = old.pickedPrice;
-        }
-        out.push(p);
-      }
+      if (p) job.out.push(p);
+      else job.failed[lastFail] = (job.failed[lastFail] ?? 0) + 1;
     } catch {
-      failed["Data unavailable"] = (failed["Data unavailable"] ?? 0) + 1;
+      job.tries[c.ca] = (job.tries[c.ca] ?? 0) + 1;
+      if (job.tries[c.ca] < 3) job.queue.push(c);
+      else job.failed["Data unavailable"] = (job.failed["Data unavailable"] ?? 0) + 1;
     }
-    await wait(500);
-    if (out.length >= 5) break;
+    await wait(400);
+  }
+  // give up on a job that drags on (stale prices)
+  const stale = Date.now() - job.started > (kind === "scalp" ? 8 : 30) * 60_000;
+  const done = !job.queue.length || job.out.length >= 5 || stale;
+  if (stale && job.queue.length) job.failed["Data unavailable"] = (job.failed["Data unavailable"] ?? 0) + job.queue.length;
+  if (!done) {
+    if (kvConfigured()) await kvPipeline([["SET", jk, JSON.stringify(job), "EX", 3600]]);
+    return { at: Date.now(), picks: job.out, scanned: job.scanned, passed: job.out.length, shortlisted: size, failed: job.failed, done };
+  }
+  const prev = await readPicks(kind);
+  const out = job.out;
+  for (const p of out) {
+    const old = prev?.picks.find((x) => x.ca === p.ca);
+    if (old) {
+      p.pickedAt = old.pickedAt;
+      p.pickedPrice = old.pickedPrice;
+    }
   }
   out.sort((a, b) => b.score - a.score);
-  const state: PicksState = { at: Date.now(), picks: out, scanned: all.length, passed: out.length, shortlisted: shortlist.length, failed };
+  const state: PicksState = { at: Date.now(), picks: out, scanned: job.scanned, passed: out.length, shortlisted: size, failed: job.failed };
   if (kvConfigured()) {
-    await kvPipeline([["SET", `picks:${kind}`, JSON.stringify(state)]]);
+    await kvPipeline([["SET", `picks:${kind}`, JSON.stringify(state)], ["DEL", jk]]);
     // open a track-record entry for every new pick
     for (const p of out) await kvPipeline([["SET", `picks:open:${kind}:${p.ca}`, JSON.stringify({ kind, ca: p.ca, symbol: p.symbol, entry: p.pickedPrice, target: p.target, stop: p.stop, at: p.pickedAt }), "NX"]]);
   }
-  return state;
+  return { ...state, done };
 }
 
 export async function readPicks(kind: Kind): Promise<PicksState | null> {
