@@ -73,5 +73,6 @@ Android: Chrome → Install app. Panduan pelanggan: `public/orbit-guide.pdf`.
 ### Alert Telegram (Ultra)
 
 1. Bot dibuat di @BotFather. Vercel env: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_NAME` (username tanpa @).
-2. Selepas deploy, owner buka `/api/tg/setup` sekali (dengan kod owner) untuk sambung webhook ke `/api/tg/hook`.
+2. Selepas deploy, owner buka `/api/tg/setup` sekali (dengan kod owner) untuk sambung webhook ke `/api/tg/hook`. Ia semak token dengan `getMe` dahulu.
+   Tukar token (BotFather `/revoke`) = kemas kini env di Vercel, redeploy, buka `/api/tg/setup` semula.
 3. `.github/workflows/alerts.yml` panggil `/api/cron` setiap 5 minit untuk hantar alert harga & smart-money.
