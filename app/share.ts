@@ -1,6 +1,7 @@
 "use client";
 
-import type { Analysis } from "@/lib/ta";
+import { CandlestickSeries, ColorType, createChart, createSeriesMarkers, HistogramSeries, LineSeries, LineStyle, type UTCTimestamp } from "lightweight-charts";
+import type { Analysis, Candle } from "@/lib/ta";
 
 // "Share read": one branded PNG of the chart + the ORBIT Read, for X / WhatsApp / Telegram.
 const W = 1600, H = 900;
@@ -113,7 +114,8 @@ export async function makeShareImage(opts: { chart: HTMLCanvasElement; overlay?:
   g.fillStyle = "#05060a";
   g.fillRect(cx, cy, cw, ch);
   g.drawImage(chart, cx, cy, cw, ch);
-  if (overlay && overlay.width) g.drawImage(overlay, cx, cy, cw, (overlay.height / chart.height) * ch);
+  // the overlay spans the chart's full width and only its main pane: keep its own aspect ratio
+  if (overlay && overlay.width) g.drawImage(overlay, cx, cy, cw, (overlay.height / overlay.width) * cw);
   g.restore();
   g.strokeStyle = "rgba(255,255,255,0.16)";
   g.beginPath();
@@ -165,4 +167,50 @@ export async function shareImage(blob: Blob, name: string, text: string) {
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   return "downloaded";
+}
+
+/** Draw a clean, wide copy of the chart off-screen (candles, EMAs, structure, levels) and return it as a canvas */
+export async function renderShareChart(cs: Candle[], ta: Analysis, hi: number, lo: number) {
+  const host = document.createElement("div");
+  host.style.cssText = "position:fixed;left:-5000px;top:0;width:1100px;height:560px;";
+  document.body.appendChild(host);
+  const fmt = (p: number) => (p >= 1 ? p.toFixed(4) : p.toPrecision(4));
+  const chart = createChart(host, {
+    width: 1100,
+    height: 560,
+    layout: { background: { type: ColorType.Solid, color: "#05060a" }, textColor: "#8a90a6", fontSize: 13, attributionLogo: false },
+    grid: { vertLines: { color: "rgba(255,255,255,0.04)" }, horzLines: { color: "rgba(255,255,255,0.04)" } },
+    rightPriceScale: { borderColor: "#1f2333" },
+    timeScale: { borderColor: "#1f2333", timeVisible: true, secondsVisible: false, rightOffset: 4 },
+    localization: { priceFormatter: fmt },
+  });
+  const price = chart.addSeries(CandlestickSeries, { upColor: "#3ee6a0", downColor: "#ff4d5e", borderVisible: false, wickUpColor: "#3ee6a0", wickDownColor: "#ff4d5e", priceFormat: { type: "custom", formatter: fmt, minMove: 1e-12 } });
+  price.setData(cs.map((c) => ({ time: c.t as UTCTimestamp, open: c.o, high: c.h, low: c.l, close: c.c })));
+  price.priceScale().applyOptions({ scaleMargins: { top: 0.08, bottom: 0.2 } });
+  const vol = chart.addSeries(HistogramSeries, { priceFormat: { type: "volume" }, priceScaleId: "", lastValueVisible: false, priceLineVisible: false });
+  vol.priceScale().applyOptions({ scaleMargins: { top: 0.84, bottom: 0 } });
+  vol.setData(cs.map((c) => ({ time: c.t as UTCTimestamp, value: c.v, color: c.c >= c.o ? "rgba(62,230,160,0.3)" : "rgba(255,77,94,0.3)" })));
+  for (const [data, color, w] of [[ta.ema20, "#5ad1ff", 1], [ta.ema50, "#3f6fd8", 2]] as [number[], string, number][]) {
+    const l = chart.addSeries(LineSeries, { color, lineWidth: w as 1, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false });
+    l.setData(cs.map((c, i) => ({ time: c.t as UTCTimestamp, value: data[i] })));
+  }
+  const line = (p: number, color: string, title: string, style = LineStyle.Dashed) => price.createPriceLine({ price: p, color, lineStyle: style, lineWidth: 1, axisLabelVisible: true, title });
+  line(hi, "#3ee6a0", "High");
+  line(lo, "#ff4d5e", "Low");
+  line(ta.profile.poc, "#ffb84d", "POC", LineStyle.Solid);
+  ta.read.resistance.forEach((z, i) => line(z.mid, "rgba(255,107,120,0.9)", `R${i + 1}`, LineStyle.Dotted));
+  ta.read.support.forEach((z, i) => line(z.mid, "rgba(111,227,168,0.9)", `S${i + 1}`, LineStyle.Dotted));
+  createSeriesMarkers(
+    price,
+    ta.swings
+      .filter((s) => s.label !== "H" && s.label !== "L")
+      .slice(-12)
+      .map((s) => ({ time: s.t as UTCTimestamp, position: s.kind === "high" ? ("aboveBar" as const) : ("belowBar" as const), color: s.label === "HH" || s.label === "HL" ? "#3ee6a0" : "#ff4d5e", shape: "circle" as const, size: 0.4, text: s.label })),
+  );
+  chart.timeScale().fitContent();
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 60))));
+  const shot = chart.takeScreenshot();
+  chart.remove();
+  host.remove();
+  return shot;
 }

@@ -16,7 +16,7 @@ import {
 import { fetchCandles } from "@/lib/analysis";
 import { analyse as taAnalyse, type Analysis, type Zone } from "@/lib/ta";
 import { fetchWhales, type WhaleTrade } from "@/lib/whales";
-import { makeShareImage, shareImage } from "./share";
+import { makeShareImage, renderShareChart, shareImage } from "./share";
 import { api } from "./key";
 import { backtest, type Backtest } from "@/lib/backtest";
 import { addAlert, getAlerts, onAlertsChange, removeAlert, type PriceAlert } from "./alerts";
@@ -153,6 +153,7 @@ export default function Chart({
   const box = useRef<HTMLDivElement>(null);
   const overlay = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const drawRef = useRef<(() => void) | null>(null);
   const [shareMsg, setShareMsg] = useState<string | null>(null);
   const wrap = useRef<HTMLElement>(null);
   const [full, setFull] = useState(false);
@@ -247,7 +248,8 @@ export default function Chart({
     if (!chartRef.current || !ta) return;
     setShareMsg("Preparing image…");
     try {
-      const blob = await makeShareImage({ chart: chartRef.current.takeScreenshot(), overlay: overlay.current, ta, sym: symbol || "COIN", tf, fmt: fmtPrice });
+      const shot = await renderShareChart(candles!, ta, a!.hi.h, a!.lo.l);
+      const blob = await makeShareImage({ chart: shot, overlay: null, ta, sym: symbol || "COIN", tf, fmt: fmtPrice });
       const r = await shareImage(blob, `ORBIT-${symbol || "read"}-${tf}.png`, `$${symbol} ${tf} read by ORBIT · orbitonsol.com`);
       setShareMsg(r === "downloaded" ? "Image saved — post it anywhere." : null);
     } catch {
@@ -377,7 +379,7 @@ export default function Chart({
     const draw = () => {
       if (!ta || !alive) return;
       const dpr = window.devicePixelRatio || 1;
-      const W = el.clientWidth, H = chart.paneSize(0).height;
+      const W = chart.options().width || el.clientWidth, H = chart.paneSize(0).height;
       const plotW = chart.timeScale().width();
       cv.style.width = `${W}px`;
       cv.style.height = `${H}px`;
@@ -471,6 +473,7 @@ export default function Chart({
         }
       }
     };
+    drawRef.current = draw;
     const redraw = () => requestAnimationFrame(draw);
     chart.timeScale().subscribeVisibleLogicalRangeChange(redraw);
     chart.subscribeCrosshairMove(redraw);
