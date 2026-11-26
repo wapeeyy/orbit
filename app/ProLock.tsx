@@ -15,12 +15,18 @@ export function usePro() {
 }
 
 /** Kad terkunci untuk ciri Pro */
-export default function ProLock({ title, text, onSubscribe }: { title: string; text: string; onSubscribe: () => void }) {
+export default function ProLock({ title, text, onSubscribe, ultra = false }: { title: string; text: string; onSubscribe: () => void; ultra?: boolean }) {
   return (
     <div className="card locked-cta">
       <b>{title}</b>
       <span className="muted small">{text}</span>
-      <LockButton onClick={onSubscribe} />
+      {ultra ? (
+        <button className="trial-cta-btn sm" onClick={onSubscribe}>
+          Get ORBIT Ultra
+        </button>
+      ) : (
+        <LockButton onClick={onSubscribe} />
+      )}
     </div>
   );
 }

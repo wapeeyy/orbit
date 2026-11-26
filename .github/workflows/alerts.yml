@@ -11,12 +11,13 @@ concurrency:
 jobs:
   tick:
     runs-on: ubuntu-latest
-    timeout-minutes: 7
+    timeout-minutes: 10
     steps:
       - name: Tick every minute
         run: |
           for i in 1 2 3 4 5; do
             curl -fsS --max-time 55 https://www.orbitonsol.com/api/cron || true
+            curl -fsS --max-time 58 https://www.orbitonsol.com/api/picks/refresh || true
             echo
-            [ "$i" -lt 5 ] && sleep 58
+            [ "$i" -lt 5 ] && sleep 30
           done

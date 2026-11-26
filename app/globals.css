@@ -845,3 +845,41 @@ html, body { touch-action: pan-x pan-y; -webkit-text-size-adjust: 100%; }
 @keyframes tipin { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 .full-tip, .full-tip * { font-family: var(--display); }
 .full-tip > div > b { font-family: var(--narrow); }
+
+/* ORBIT Scalp & Hold */
+.sig-tab { color: var(--gold) !important; }
+.sig-intro .label, .sig-closed .label { display: block; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--gold); margin-bottom: 8px; }
+.sig-intro p { margin: 0 0 12px; color: var(--muted); }
+.sig-tabs { margin: 0; }
+.sig-record { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0 6px; }
+.sig-record > div { display: grid; gap: 3px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #0b0d15; }
+.sig-record span { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); }
+.sig-record b { font-weight: 500; font-size: 14px; }
+.sig-meta { margin: 6px 0 10px; }
+.sig-empty { display: grid; gap: 6px; }
+.sig-card { border-color: rgba(243,217,164,0.35); display: grid; gap: 12px; }
+.sig-card.hold { border-color: rgba(122,162,255,0.4); }
+.sig-head { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+.sig-head .wl-coin img, .sig-head .wl-coin i { width: 34px; height: 34px; }
+.sig-head .wl-coin b { font-size: 20px; font-weight: 500; }
+.sig-score { display: grid; justify-items: end; }
+.sig-score b { font-size: 30px; font-weight: 300; color: var(--gold); line-height: 1; }
+.sig-score small { font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--faint); }
+.sig-plan { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.sig-plan > div { display: grid; gap: 3px; padding: 10px; border-radius: 10px; background: #0b0d15; border: 1px solid var(--line); min-width: 0; }
+.sig-plan span { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); }
+.sig-plan b { font-family: var(--mono, monospace); font-weight: 500; font-size: 13px; overflow-wrap: anywhere; }
+.sig-plan small { color: var(--muted); font-size: 11px; }
+.sig-card .up, .sig-record .up, .sig-closed .up { color: var(--ok); } .sig-card .down, .sig-record .down, .sig-closed .down { color: var(--danger); }
+.sig-facts { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.sig-checks { display: grid; gap: 4px; }
+.sig-checks span { display: grid; grid-template-columns: 18px 130px 1fr; gap: 6px; align-items: baseline; font-size: 12.5px; padding: 4px 0; border-top: 1px solid rgba(255,255,255,0.05); }
+.sig-checks span.ok i { color: var(--ok); font-style: normal; } .sig-checks span.bad i { color: var(--danger); font-style: normal; }
+.sig-checks em { font-style: normal; color: var(--muted); }
+.sig-crow { display: grid; grid-template-columns: 1fr 100px 70px auto; gap: 8px; padding: 7px 0; border-top: 1px solid rgba(255,255,255,0.06); font-size: 13px; align-items: center; }
+.sig-res { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; } .sig-res.target { color: var(--ok); } .sig-res.stop { color: var(--danger); } .sig-res.expired { color: var(--faint); }
+.sig-disc { text-align: center; margin: 14px 0; }
+@media (max-width: 600px) {
+  .sig-plan { grid-template-columns: 1fr 1fr; }
+  .sig-checks span { grid-template-columns: 18px 1fr; } .sig-checks em { grid-column: 2; }
+}

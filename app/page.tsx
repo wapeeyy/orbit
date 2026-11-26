@@ -17,6 +17,7 @@ import Watchlist, { WatchStar } from "./Watchlist";
 import Fresh from "./Fresh";
 import Insiders from "./Insiders";
 import SafetySummary from "./SafetySummary";
+import Signals from "./Signals";
 import { Hero, StickyCta, TrialButton, TrialStrip, UpgradeModal } from "./Upgrade";
 import Trade from "./Trade";
 import { SmartMoney } from "./Follow";
@@ -51,14 +52,14 @@ const short = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
 
 export default function Home() {
   const [tab, setTab] = useState<"scan" | "discover" | "wallet" | "demo" | "sub">("discover");
-  const [mode, setMode] = useState<"all" | "picks" | "watch" | "fresh">("all");
+  const [mode, setMode] = useState<"all" | "picks" | "watch" | "fresh" | "signals">("all");
   useEffect(() => {
     try {
       const m = localStorage.getItem("orbit.discover.mode");
-      if (m === "picks" || m === "all" || m === "watch" || m === "fresh") setMode(m);
+      if (m === "picks" || m === "all" || m === "watch" || m === "fresh" || m === "signals") setMode(m);
     } catch {}
   }, []);
-  const pickMode = (m: "all" | "picks" | "watch" | "fresh") => {
+  const pickMode = (m: "all" | "picks" | "watch" | "fresh" | "signals") => {
     setMode(m);
     try {
       localStorage.setItem("orbit.discover.mode", m);
@@ -177,6 +178,9 @@ export default function Home() {
           <button role="tab" aria-selected={mode === "picks"} className={mode === "picks" ? "on" : ""} onClick={() => pickMode("picks")}>
             ORBIT picks
           </button>
+          <button role="tab" aria-selected={mode === "signals"} className={mode === "signals" ? "on sig-tab" : "sig-tab"} onClick={() => pickMode("signals")}>
+            Scalp &amp; Hold
+          </button>
           <button role="tab" aria-selected={mode === "fresh"} className={mode === "fresh" ? "on" : ""} onClick={() => pickMode("fresh")}>
             Fresh
           </button>
@@ -186,6 +190,19 @@ export default function Home() {
         </div>
         <div hidden={mode !== "all"}>
           <MarketList onOpen={(ca) => openCa(ca)} cta={!pro ? <TrialStrip onTrial={startTrial} /> : undefined} />
+        </div>
+        <div hidden={mode !== "signals"}>
+          {mode === "signals" &&
+            (ultraHome ? (
+              <Signals onOpen={(ca) => openCa(ca)} />
+            ) : (
+              <ProLock
+                title="ORBIT Scalp & Hold is for Ultra"
+                text="Coins ORBIT picks for a quick scalp or a hold of up to 30 days, after chart, buyer/seller, sell-test, red-flag and holder checks, each with an entry zone, target and stop."
+                onSubscribe={goSub}
+                ultra
+              />
+            ))}
         </div>
         <div hidden={mode !== "fresh"}>
           {mode === "fresh" &&
