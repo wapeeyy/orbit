@@ -39,6 +39,7 @@ export async function POST(req: Request) {
   if (key?.tier !== "ultra") return NextResponse.json({ error: "Ultra only" }, { status: 402 });
   if (!kvConfigured()) return NextResponse.json({ error: "Database not connected" }, { status: 503 });
   const id = subId(req.headers.get("x-orbit-key")!);
+  await kvPipeline([["SET", `tgkey:${id}`, req.headers.get("x-orbit-key")!.trim(), "PX", Math.max(60_000, key.exp - Date.now())]]);
   const raw = await kvGet(`tgsub:${id}`);
   if (!raw) return NextResponse.json({ connected: false }, { headers: nocache });
   const sub = JSON.parse(raw) as TgSub;
