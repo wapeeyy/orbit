@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { isActive, onKeyChange } from "./key";
-import { PRICE_LABEL } from "./price";
+import { useCtaLabel } from "./Upgrade";
 
 export function usePro() {
   const [pro, setPro] = useState(false);
@@ -20,9 +20,16 @@ export default function ProLock({ title, text, onSubscribe }: { title: string; t
     <div className="card locked-cta">
       <b>{title}</b>
       <span className="muted small">{text}</span>
-      <button className="copy primary" onClick={onSubscribe}>
-        Get ORBIT Pro — {PRICE_LABEL}
-      </button>
+      <LockButton onClick={onSubscribe} />
     </div>
+  );
+}
+
+function LockButton({ onClick }: { onClick: () => void }) {
+  const label = useCtaLabel(false);
+  return (
+    <button className="trial-cta-btn sm" onClick={onClick}>
+      {label}
+    </button>
   );
 }

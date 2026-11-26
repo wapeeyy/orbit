@@ -16,6 +16,8 @@ import RugCheck from "./RugCheck";
 import Watchlist, { WatchStar } from "./Watchlist";
 import Fresh from "./Fresh";
 import Insiders from "./Insiders";
+import SafetySummary from "./SafetySummary";
+import { Hero, StickyCta, TrialButton, TrialStrip, UpgradeModal } from "./Upgrade";
 import Trade from "./Trade";
 import { SmartMoney } from "./Follow";
 import { TrialBanner } from "./Trial";
@@ -23,7 +25,6 @@ import { Galaxy, Icon } from "./Cosmos";
 import type { TokenInfo } from "@/lib/info";
 import type { TokenExtra } from "@/lib/report";
 import { api, isActive, onKeyChange, setKey, keyTier } from "./key";
-import { PRICE_LABEL } from "./price";
 import type { Market } from "@/lib/dex";
 import type { HolderReport } from "@/lib/holders";
 
@@ -117,15 +118,38 @@ export default function Home() {
     setTab("sub");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
+  // Free-trial path: modal on locked features, then straight to the trial card on the Pro tab
+  const [upgrade, setUpgrade] = useState(false);
+  const startTrial = () => {
+    setUpgrade(false);
+    setTab("sub");
+    setTimeout(() => {
+      const el = document.querySelector(".trial-card") ?? document.querySelector(".plans-wrap");
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      el?.classList.add("flash");
+      setTimeout(() => el?.classList.remove("flash"), 1800);
+    }, 120);
+  };
+  const askUpgrade = () => (pro ? goSub() : setUpgrade(true));
 
   return (
     <main>
-      <header className="brand">
-        <Galaxy size={230} className="brand-mark" />
-        <h1>Orbit</h1>
-        <p className="eyebrow">Solana coin intelligence</p>
-        <p className="brand-sub">Find Solana coins worth a look, or paste a CA to check price, liquidity & who holds the supply.</p>
-      </header>
+      {pro ? (
+        <header className="brand">
+          <Galaxy size={230} className="brand-mark" />
+          <h1>Orbit</h1>
+          <p className="eyebrow">Solana coin intelligence</p>
+          <p className="brand-sub">Find Solana coins worth a look, or paste a CA to check price, liquidity & who holds the supply.</p>
+        </header>
+      ) : (
+        <header className="brand brand-hero">
+          <Galaxy size={150} className="brand-mark" />
+          <span className="brand-word">Orbit</span>
+          <Hero onTrial={startTrial} />
+        </header>
+      )}
+      {!pro && <StickyCta onTrial={startTrial} />}
+      <UpgradeModal open={upgrade} onClose={() => setUpgrade(false)} onStart={startTrial} />
 
       <TrialBanner onSubscribe={goSub} />
       <nav className="tabs">
@@ -161,14 +185,14 @@ export default function Home() {
           </button>
         </div>
         <div hidden={mode !== "all"}>
-          <MarketList onOpen={(ca) => openCa(ca)} />
+          <MarketList onOpen={(ca) => openCa(ca)} cta={!pro ? <TrialStrip onTrial={startTrial} /> : undefined} />
         </div>
         <div hidden={mode !== "fresh"}>
           {mode === "fresh" &&
             (pro ? (
               <Fresh onOpen={(ca) => openCa(ca)} />
             ) : (
-              <ProLock title="Fresh pairs are for Pro" text="Solana pairs 5–60 minutes old with a quick risk score, early buyers and sellers — before they trend." onSubscribe={goSub} />
+              <ProLock title="Fresh pairs are for Pro" text="Solana pairs 5–60 minutes old with a quick risk score, early buyers and sellers — before they trend." onSubscribe={askUpgrade} />
             ))}
         </div>
         <div hidden={mode !== "watch"}>
@@ -176,19 +200,19 @@ export default function Home() {
             (pro ? (
               <Watchlist onOpen={(ca) => openCa(ca)} />
             ) : (
-              <ProLock title="Watchlist is for Pro" text="Star any coin and follow its price, 24h change and liquidity in one place." onSubscribe={goSub} />
+              <ProLock title="Watchlist is for Pro" text="Star any coin and follow its price, 24h change and liquidity in one place." onSubscribe={askUpgrade} />
             ))}
         </div>
         <div hidden={mode !== "picks"}>
-          <Discover onSubscribe={goSub} onOpen={openCa} />
+          <Discover onSubscribe={askUpgrade} onOpen={openCa} />
         </div>
       </div>
       <div hidden={tab !== "scan"}>
-        <ScanView request={scanCa} onSubscribe={goSub} onTrace={trace} />
+        <ScanView request={scanCa} onSubscribe={askUpgrade} onTrial={startTrial} onTrace={trace} />
       </div>
       <div hidden={tab !== "wallet"}>
         {ultraHome && <SmartMoney onTrace={trace} onOpen={(ca) => openCa(ca)} />}
-        <Wallet request={walletReq} onOpen={(ca) => openCa(ca)} onSubscribe={goSub} ultra={ultraHome} />
+        <Wallet request={walletReq} onOpen={(ca) => openCa(ca)} onSubscribe={askUpgrade} ultra={ultraHome} />
       </div>
       <div hidden={tab !== "demo"}>
         {pro ? (
@@ -197,7 +221,7 @@ export default function Home() {
           <ProLock
             title="Demo trading is for Pro subscribers"
             text="Practise with 10 fake SOL at real prices: buy, sell half or all, and watch your PnL live — no real money at risk."
-            onSubscribe={goSub}
+            onSubscribe={askUpgrade}
           />
         )}
       </div>
@@ -214,10 +238,12 @@ export default function Home() {
 function ScanView({
   request,
   onSubscribe,
+  onTrial,
   onTrace,
 }: {
   request: { ca: string; n: number; free?: string } | null;
   onSubscribe: () => void;
+  onTrial: () => void;
   onTrace: (address: string) => void;
 }) {
   const pro = usePro();
@@ -293,7 +319,7 @@ function ScanView({
             The free version opens the top 3 coins in Discover. Subscribe to scan any CA: holders, chart,
             narrative and the owner's latest posts.
           </span>
-          <button className="copy primary" onClick={onSubscribe}>Subscribe — {PRICE_LABEL}</button>
+          <TrialButton onClick={onTrial} size="sm" long={false} />
         </div>
       )}
 
@@ -327,6 +353,8 @@ function ScanView({
               <p className="muted">{data.marketError ?? "No DexScreener pair for this token."}</p>
             )}
           </section>
+
+          <SafetySummary key={"safe-" + data.ca} ca={data.ca} pro={pro} top10Pct={h ? h.top10Pct : data.holdersError ? -1 : null} dev={info?.dev ?? null} onTrial={onTrial} />
 
           {pro ? (
             <>

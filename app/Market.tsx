@@ -103,18 +103,24 @@ type Gt = {
   included?: { id: string; type: string; attributes: { name: string; symbol?: string; image_url?: string | null; address?: string } }[];
 };
 
-async function fetchPage(list: ListId, page: number): Promise<Row[]> {
+/** GeckoTerminal straight from the browser; if it is busy or blocked, ORBIT's shared 45-second cache */
+async function fetchGt(list: ListId, page: number): Promise<Gt> {
   const path = LISTS[list].path;
   const url = `https://api.geckoterminal.com/api/v2/networks/solana/${path}${path.includes("?") ? "&" : "?"}page=${page}&include=base_token,dex`;
-  let res: Response;
   try {
-    res = await fetch(url, { headers: { accept: "application/json" } });
+    const res = await fetch(url, { headers: { accept: "application/json" } });
+    if (res.ok) return (await res.json()) as Gt;
   } catch {
-    throw Object.assign(new Error("rate"), { rate: true }); // 429s arrive without CORS headers
+    // 429s arrive without CORS headers and look like network errors
   }
+  const res = await fetch(`/api/pairs?list=${list}&page=${page}`);
   if (res.status === 429) throw Object.assign(new Error("rate"), { rate: true });
-  if (!res.ok) throw new Error(`GeckoTerminal ${res.status}`);
-  const j = (await res.json()) as Gt;
+  if (!res.ok) throw new Error("unavailable");
+  return (await res.json()) as Gt;
+}
+
+async function fetchPage(list: ListId, page: number): Promise<Row[]> {
+  const j = await fetchGt(list, page);
   const inc = new Map((j.included ?? []).map((x) => [x.id, x]));
   const n = (s: string | null | undefined) => (s == null ? 0 : Number(s));
   return j.data.map((d) => {
@@ -144,12 +150,14 @@ async function fetchPage(list: ListId, page: number): Promise<Row[]> {
   });
 }
 
-export default function Market({ onOpen }: { onOpen: (ca: string) => void }) {
+export default function Market({ onOpen, cta }: { onOpen: (ca: string) => void; cta?: React.ReactNode }) {
   const [list, setList] = useState<ListId>("trending");
   const [rows, setRows] = useState<Row[]>([]);
   const [pages, setPages] = useState(0);
   const [loading, setLoading] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [reload, setReload] = useState(0);
   const [updated, setUpdated] = useState<number | null>(null);
   const [fresh, setFresh] = useState<Set<string>>(new Set());
   const [f, setF] = useState<F>(EMPTY);
@@ -181,8 +189,7 @@ export default function Market({ onOpen }: { onOpen: (ca: string) => void }) {
         return await fetchPage(l, page);
       } catch (e) {
         if (!(e as { rate?: boolean }).rate || attempt) throw e;
-        setNote("Busy — retrying in a few seconds…");
-        await new Promise((r) => setTimeout(r, 9000));
+        await new Promise((r) => setTimeout(r, 6000));
       }
     }
     return [];
@@ -194,6 +201,7 @@ export default function Market({ onOpen }: { onOpen: (ca: string) => void }) {
     (async () => {
       setLoading(true);
       setNote(null);
+      setFailed(false);
       setRows([]);
       setPages(0);
       setFresh(new Set());
@@ -208,8 +216,8 @@ export default function Market({ onOpen }: { onOpen: (ca: string) => void }) {
             setUpdated(Date.now());
             setNote(null);
           }
-        } catch (e) {
-          if (!dead) setNote((e as Error).message === "rate" ? "GeckoTerminal is busy. Wait a minute and tap refresh." : (e as Error).message);
+        } catch {
+          if (!dead && all.length === 0) setFailed(true);
           break;
         }
         await new Promise((r) => setTimeout(r, 350));
@@ -219,7 +227,7 @@ export default function Market({ onOpen }: { onOpen: (ca: string) => void }) {
     return () => {
       dead = true;
     };
-  }, [list, get]);
+  }, [list, get, reload]);
 
   // Live refresh of page 1: every 30 s for new pairs, every 60 s otherwise
   useEffect(() => {
@@ -255,7 +263,7 @@ export default function Market({ onOpen }: { onOpen: (ca: string) => void }) {
       setPages((p) => p + 1);
       setNote(null);
     } catch (e) {
-      setNote((e as Error).message === "rate" ? "GeckoTerminal is busy. Try again in a minute." : (e as Error).message);
+      setNote((e as Error).message === "rate" ? "Couldn't load more pairs right now. Please try again." : "Couldn't load more pairs right now. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -385,6 +393,7 @@ export default function Market({ onOpen }: { onOpen: (ca: string) => void }) {
         </div>
       )}
 
+      {rows.length > 0 && (
       <div className="m-status">
         <span className="eyebrow">
           {list === "new" && <span className="live-dot" aria-hidden="true" />}
@@ -392,6 +401,7 @@ export default function Market({ onOpen }: { onOpen: (ca: string) => void }) {
         </span>
         {note && <span className="small m-note">{note}</span>}
       </div>
+      )}
 
       <div className="m-table" role="table" aria-label="Solana pairs">
         <div className="m-row m-head" role="row">
@@ -440,7 +450,33 @@ export default function Market({ onOpen }: { onOpen: (ca: string) => void }) {
           </div>
         ))}
         {!loading && rows.length > 0 && shown.length === 0 && <p className="muted m-empty">No pairs match these filters. Loosen them or load more pairs.</p>}
-        {loading && rows.length === 0 && <p className="muted m-empty">Loading Solana pairs…</p>}
+        {loading && rows.length === 0 && !failed && (
+          <div className="m-skeleton" aria-busy="true" aria-label="Loading Solana pairs">
+            <div className="m-loading">
+              <span className="spinner" aria-hidden="true" />
+              Loading Solana pairs…
+            </div>
+            {Array.from({ length: 8 }, (_, i) => (
+              <div key={i} className="m-skel-row">
+                <i className="sk sk-av" />
+                <span>
+                  <i className="sk sk-l" />
+                  <i className="sk sk-s" />
+                </span>
+                <i className="sk sk-p" />
+              </div>
+            ))}
+          </div>
+        )}
+        {failed && rows.length === 0 && (
+          <div className="m-error">
+            <b>Unable to load pairs right now.</b>
+            <span className="muted small">Please try again.</span>
+            <button type="button" className="tier-btn pro m-retry" onClick={() => setReload((n) => n + 1)}>
+              Retry
+            </button>
+          </div>
+        )}
       </div>
 
       {pages > 0 && pages < MAX_PAGES && (
@@ -448,6 +484,7 @@ export default function Market({ onOpen }: { onOpen: (ca: string) => void }) {
           {loading ? "Loading…" : `Load more pairs (${pages * 20} loaded)`}
         </button>
       )}
+      {cta}
       <p className="muted small m-src">
         Pair data: GeckoTerminal · {LISTS[list].label} shows up to {MAX_PAGES * 20} pairs. Tap a pair for the full ORBIT report.
       </p>

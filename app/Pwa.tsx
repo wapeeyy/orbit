@@ -22,15 +22,38 @@ export default function Pwa() {
     if (standalone || dismissed) return;
     const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
     setIos(isIos);
-    if (isIos) setHidden(false);
+    // Don't greet first-time visitors with a banner: show it on a return visit, or after 40 s on the site
+    let visits = 0;
+    try {
+      visits = Number(localStorage.getItem("orbit.visits") ?? 0) + 1;
+      localStorage.setItem("orbit.visits", String(visits));
+    } catch {}
+    let ready = visits > 1;
+    let canPrompt = isIos;
+    const show = () => ready && canPrompt && setHidden(false);
+    const t = setTimeout(() => {
+      ready = true;
+      show();
+    }, 40_000);
     const onPrompt = (e: Event) => {
       e.preventDefault();
       setEvt(e as InstallEvent);
-      setHidden(false);
+      canPrompt = true;
+      show();
     };
+    show();
     window.addEventListener("beforeinstallprompt", onPrompt);
-    return () => window.removeEventListener("beforeinstallprompt", onPrompt);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("beforeinstallprompt", onPrompt);
+    };
   }, []);
+
+  useEffect(() => {
+    // keep the page's last buttons reachable above the banner
+    document.body.classList.toggle("has-install", !hidden);
+    return () => document.body.classList.remove("has-install");
+  }, [hidden]);
 
   if (hidden) return null;
   const close = () => {

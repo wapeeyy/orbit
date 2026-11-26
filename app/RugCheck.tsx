@@ -38,6 +38,22 @@ async function roundTrip(ca: string): Promise<Trip> {
   }
 }
 
+/** Round-trip quote + RugCheck summary, fetched once per coin and shared by the cards that need it */
+const rugCache = new Map<string, Promise<{ trip: Trip; sum: Summary | null }>>();
+export function rugData(ca: string) {
+  if (!rugCache.has(ca))
+    rugCache.set(
+      ca,
+      Promise.all([
+        roundTrip(ca),
+        fetch(`https://api.rugcheck.xyz/v1/tokens/${ca}/report/summary`)
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null),
+      ]).then(([trip, sum]) => ({ trip, sum: sum as Summary | null })),
+    );
+  return rugCache.get(ca)!;
+}
+
 export default function RugCheck({ ca }: { ca: string }) {
   const [trip, setTrip] = useState<Trip | null>(null);
   const [sum, setSum] = useState<Summary | null | undefined>(undefined);
@@ -45,11 +61,11 @@ export default function RugCheck({ ca }: { ca: string }) {
     let dead = false;
     setTrip(null);
     setSum(undefined);
-    roundTrip(ca).then((t) => !dead && setTrip(t));
-    fetch(`https://api.rugcheck.xyz/v1/tokens/${ca}/report/summary`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => !dead && setSum(j))
-      .catch(() => !dead && setSum(null));
+    rugData(ca).then(({ trip, sum }) => {
+      if (dead) return;
+      setTrip(trip);
+      setSum(sum);
+    });
     return () => {
       dead = true;
     };
