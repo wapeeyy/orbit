@@ -19,10 +19,14 @@ export async function GET(req: Request) {
       tokenLength: t.length,
     }, { status: 400 });
   }
+  // re-create the webhook so new update types (channel posts, join requests) are definitely delivered
+  await fetch(`https://api.telegram.org/bot${t}/deleteWebhook`, { method: "POST" });
   const r = await fetch(`https://api.telegram.org/bot${t}/setWebhook`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ url: "https://www.orbitonsol.com/api/tg/hook", secret_token: tgHookSecret(), allowed_updates: ["message", "channel_post", "chat_join_request"] }),
   });
-  return NextResponse.json(await r.json());
+  const set = await r.json();
+  const info = await (await fetch(`https://api.telegram.org/bot${t}/getWebhookInfo`)).json();
+  return NextResponse.json({ set, allowed: info.result?.allowed_updates, pending: info.result?.pending_update_count, lastError: info.result?.last_error_message ?? null });
 }
