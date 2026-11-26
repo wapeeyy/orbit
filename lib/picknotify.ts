@@ -53,15 +53,15 @@ export function removedText(r: Removed) {
 /** Ultra subscribers who connected Telegram and keep Scalp & Hold alerts on */
 async function pickChats() {
   const [ids] = (await kvPipeline([["SMEMBERS", "tgsubs"]])) as [string[]];
-  const chats: number[] = [];
+  const chats = new Set<number>(); // one message per chat, even if it was connected twice
   for (const id of ids ?? []) {
     const raw = await kvGet(`tgsub:${id}`);
     if (!raw) continue;
     const s = JSON.parse(raw) as TgSub;
     const prefs = { ...DEFAULT_PREFS, ...(s.prefs ?? {}) };
-    if (s.chat && s.exp > Date.now() && prefs.picks) chats.push(s.chat);
+    if (s.chat && s.exp > Date.now() && prefs.picks) chats.add(s.chat);
   }
-  return chats;
+  return [...chats];
 }
 
 async function broadcast(items: { text: string; ca: string }[]) {
