@@ -2,8 +2,8 @@ import { createHash, createHmac } from "node:crypto";
 
 // Telegram bot for Ultra alerts that arrive even when ORBIT is closed.
 // Env: TELEGRAM_BOT_TOKEN (from @BotFather), TELEGRAM_BOT_NAME (the bot's username, without @).
-export const tgToken = () => process.env.TELEGRAM_BOT_TOKEN || "";
-export const tgName = () => (process.env.TELEGRAM_BOT_NAME || "").replace(/^@/, "");
+export const tgToken = () => (process.env.TELEGRAM_BOT_TOKEN || "").trim().replace(/^bot/i, "").replace(/\s+/g, "");
+export const tgName = () => (process.env.TELEGRAM_BOT_NAME || "").trim().replace(/^@/, "");
 export const tgReady = () => !!tgToken() && !!tgName();
 
 /** Secret Telegram sends back on every webhook call (derived, so nothing extra to configure) */
