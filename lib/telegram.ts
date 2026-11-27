@@ -1,5 +1,5 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-import { kvGet, kvPipeline } from "./kv";
+import { kvGet, kvPipeline, setOnce } from "./kv";
 
 // Telegram bot (@OrbitOnSolBot): personal Ultra alerts, the public ORBIT channel and the private ORBIT Ultra group.
 // Env: TELEGRAM_BOT_TOKEN (from @BotFather), TELEGRAM_BOT_NAME (the bot's username, without @).
@@ -101,6 +101,9 @@ export function tgVerifyInitData(initData: string, maxAgeS = 86_400): number | n
 
 /** A coin alert in two messages: the alert (with its button), then the contract address on its own, easy to copy */
 export async function tgSendCoin(chatId: number | string, text: string, ca: string, button?: TgButton) {
+  // the same alert to the same chat only once in 10 minutes (a chat can be linked to two access codes)
+  const key = `tgdup:${chatId}:${createHash("sha1").update(text).digest("hex").slice(0, 16)}`;
+  if (!(await setOnce(key, "1", 600).catch(() => true))) return false;
   const ok = await tgSend(chatId, text, button);
   if (ok) await tgSend(chatId, `<code>${ca}</code>`);
   return ok;
