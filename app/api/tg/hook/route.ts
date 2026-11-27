@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { kvGet, kvPipeline } from "@/lib/kv";
-import { SITE, esc, getCommunity, setCommunity, tgCall, tgHookSecret, tgName, tgSend, type TgSub } from "@/lib/telegram";
+import { SITE, esc, getCommunity, setCommunity, tgCall, tgHookSecret, tgName, tgSend, tgSendCoin, type TgSub } from "@/lib/telegram";
 import { pickText } from "@/lib/picknotify";
 import { readPicks } from "@/lib/picks";
 
@@ -142,7 +142,7 @@ export async function POST(req: Request) {
     }
     const all = [...((await readPicks("scalp"))?.picks ?? []), ...((await readPicks("hold"))?.picks ?? [])];
     if (!all.length) await tgSend(chat.id, "Nothing passes every ORBIT check right now. You get an alert here the moment a coin is added to Scalp or Hold.", { text: "Open ORBIT", url: `${SITE}/?src=tg-app`, app: true });
-    for (const p of all) await tgSend(chat.id, pickText(p).replace("New ORBIT", "ORBIT"), { text: "Open in ORBIT", url: `${SITE}/?ca=${p.ca}&src=tg-pick`, app: true });
+    for (const p of all) await tgSendCoin(chat.id, pickText(p).replace("New ORBIT", "ORBIT"), p.ca, { text: "Open in ORBIT", url: `${SITE}/?ca=${p.ca}&src=tg-pick`, app: true });
     return NextResponse.json({ ok: true });
   }
   if (await isOwner(chat.id)) {

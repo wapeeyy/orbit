@@ -1,6 +1,6 @@
 import { kvGet, kvPipeline } from "./kv";
 import type { Closed, Pick, Removed } from "./picks";
-import { DEFAULT_PREFS, SITE, esc, getCommunity, px, tgReady, tgSend, type TgSub } from "./telegram";
+import { DEFAULT_PREFS, SITE, esc, getCommunity, px, tgReady, tgSendCoin, type TgSub } from "./telegram";
 
 const pc = (a: number, b: number) => {
   const v = (a / b - 1) * 100;
@@ -24,7 +24,6 @@ export function pickText(p: Pick) {
     `Reward : risk  ${p.rr.toFixed(1)} : 1`,
     "",
     `Passed all ${p.checks.length} checks: ${p.checks.map((c) => c.k.toLowerCase()).join(", ")}.`,
-    `<code>${p.ca}</code>`,
     "<i>Filtered candidate, not financial advice. Size small and respect the stop.</i>",
   ].join("\n");
 }
@@ -33,10 +32,10 @@ export function closedText(c: Closed) {
   const name = listName(c.kind);
   const move = `$${px(c.entry)} → $${px(c.exit)} in ${dur(c.closedAt - c.at)}`;
   if (c.result === "target")
-    return [`<b>Target hit: $${esc(c.symbol)} ${pc(c.exit, c.entry)}</b>`, `ORBIT ${name} pick ${move}.`, "Consider taking profit. Removed from the list.", `<code>${c.ca}</code>`, DISC].join("\n");
+    return [`<b>Target hit: $${esc(c.symbol)} ${pc(c.exit, c.entry)}</b>`, `ORBIT ${name} pick ${move}.`, "Consider taking profit. Removed from the list.", DISC].join("\n");
   if (c.result === "stop")
-    return [`<b>Stop hit: $${esc(c.symbol)} ${pc(c.exit, c.entry)}</b>`, `ORBIT ${name} pick ${move}.`, "The setup is no longer valid. Cut the loss and wait for the next pick. Removed from the list.", `<code>${c.ca}</code>`, DISC].join("\n");
-  return [`<b>Time's up: $${esc(c.symbol)} ${pc(c.exit, c.entry)}</b>`, `ORBIT ${name} pick ran ${c.kind === "scalp" ? "24 hours" : "30 days"} without reaching target or stop (${move}).`, "Removed from the list.", `<code>${c.ca}</code>`, DISC].join("\n");
+    return [`<b>Stop hit: $${esc(c.symbol)} ${pc(c.exit, c.entry)}</b>`, `ORBIT ${name} pick ${move}.`, "The setup is no longer valid. Cut the loss and wait for the next pick. Removed from the list.", DISC].join("\n");
+  return [`<b>Time's up: $${esc(c.symbol)} ${pc(c.exit, c.entry)}</b>`, `ORBIT ${name} pick ran ${c.kind === "scalp" ? "24 hours" : "30 days"} without reaching target or stop (${move}).`, "Removed from the list.", DISC].join("\n");
 }
 
 export function removedText(r: Removed) {
@@ -45,7 +44,6 @@ export function removedText(r: Removed) {
     `<b>$${esc(p.symbol)} removed from ORBIT ${listName(p.kind)}</b>`,
     `No longer passes: ${esc(r.why)}.`,
     `If you are in it, manage the trade: stop $${px(p.stop)}, target $${px(p.target)}.`,
-    `<code>${p.ca}</code>`,
     DISC,
   ].join("\n");
 }
@@ -71,8 +69,8 @@ async function broadcast(items: { text: string; ca: string }[]) {
   let sent = 0;
   for (const it of items) {
     const btn = { text: "Open in ORBIT", url: `${SITE}/?ca=${it.ca}&src=tg-pick`, app: true };
-    for (const chat of chats) if (await tgSend(chat, it.text, btn)) sent++;
-    if (ultra) await tgSend(ultra.id, it.text, btn);
+    for (const chat of chats) if (await tgSendCoin(chat, it.text, it.ca, btn)) sent++;
+    if (ultra) await tgSendCoin(ultra.id, it.text, it.ca, btn);
   }
   return sent;
 }

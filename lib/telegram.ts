@@ -98,3 +98,11 @@ export function tgVerifyInitData(initData: string, maxAgeS = 86_400): number | n
     return null;
   }
 }
+
+/** A coin alert in two messages: the alert (with its button), then the contract address on its own, easy to copy */
+export async function tgSendCoin(chatId: number | string, text: string, ca: string, button?: TgButton) {
+  const ok = await tgSend(chatId, text, button);
+  if (ok) await tgSend(chatId, `<code>${ca}</code>`);
+  return ok;
+}
+export const shortAddr = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;

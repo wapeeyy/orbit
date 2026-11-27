@@ -5,7 +5,7 @@ import { solUsd } from "@/lib/pay";
 import { analyse } from "@/lib/ta";
 import { fetchCandles } from "@/lib/analysis";
 import { cachedVerify, verifyPending } from "@/lib/verify";
-import { DEFAULT_PREFS, SITE, esc, getCommunity, px, tgCall, tgReady, tgSend, usd, type TgSub } from "@/lib/telegram";
+import { DEFAULT_PREFS, SITE, esc, shortAddr, tgSendCoin, getCommunity, px, tgCall, tgReady, tgSend, usd, type TgSub } from "@/lib/telegram";
 import { fetchSwaps, toSwap } from "@/lib/wallet";
 
 export const dynamic = "force-dynamic";
@@ -89,7 +89,7 @@ async function tick() {
         keep.push(a);
         continue;
       }
-      if (await tgSend(x.s.chat, `<b>$${esc(a.symbol)} ${a.dir === "above" ? "broke above" : "dropped below"} $${px(a.price)}</b>${a.label ? ` (${esc(a.label)})` : ""}\nNow $${px(now)}\n<code>${a.ca}</code>`, open(a.ca))) sent++;
+      if (await tgSendCoin(x.s.chat, `<b>$${esc(a.symbol)} ${a.dir === "above" ? "broke above" : "dropped below"} $${px(a.price)}</b>${a.label ? ` (${esc(a.label)})` : ""}\nNow $${px(now)}`, a.ca, open(a.ca))) sent++;
     }
     x.s.alerts = keep;
   }
@@ -108,13 +108,13 @@ async function tick() {
       const surge = buyingSurge(d);
       if (surge && (await once(`cool:coin:${ca}:buying`, 30 * 60)))
         for (const w of watchers.get(ca)!) if (w.x.s.prefs!.buying) {
-          await tgSend(w.x.s.chat, `<b>Community buying $${sym}</b>\n${surge.buys} buys vs ${surge.sells} sells in 5 min (${surge.ratio.toFixed(1)}x the hour's pace)\nVolume ${usd(surge.vol)} · price ${surge.ch >= 0 ? "+" : ""}${surge.ch.toFixed(1)}%\n<code>${ca}</code>`, open(ca));
+          await tgSendCoin(w.x.s.chat, `<b>Community buying $${sym}</b>\n${surge.buys} buys vs ${surge.sells} sells in 5 min (${surge.ratio.toFixed(1)}x the hour's pace)\nVolume ${usd(surge.vol)} · price ${surge.ch >= 0 ? "+" : ""}${surge.ch.toFixed(1)}%`, ca, open(ca));
           sent++;
         }
       const rush = a ? walletRush(a) : null;
       if (rush && (await once(`cool:coin:${ca}:wallets`, 30 * 60)))
         for (const w of watchers.get(ca)!) if (w.x.s.prefs!.wallets) {
-          await tgSend(w.x.s.chat, `<b>Wallets rushing into $${sym}</b>\n${rush.buyers} different wallets bought in 5 min (normal pace ${rush.pace.toFixed(1)})\nPrice ${rush.ch >= 0 ? "+" : ""}${rush.ch.toFixed(1)}%\n<code>${ca}</code>`, open(ca));
+          await tgSendCoin(w.x.s.chat, `<b>Wallets rushing into $${sym}</b>\n${rush.buyers} different wallets bought in 5 min (normal pace ${rush.pace.toFixed(1)})\nPrice ${rush.ch >= 0 ? "+" : ""}${rush.ch.toFixed(1)}%`, ca, open(ca));
           sent++;
         }
     }
@@ -134,7 +134,7 @@ async function tick() {
       if (!last) continue; // first look: only remember where we are
       for (const t of trades.filter((t) => t.t > last).slice(-4))
         for (const w of watchers.get(ca)!) if (w.x.s.prefs!.whales && t.usd >= w.x.s.prefs!.minWhale) {
-          await tgSend(w.x.s.chat, `<b>Whale ${t.kind === "buy" ? "bought" : "sold"} $${esc(info.get(ca)!.symbol)}</b> ${usd(t.usd)}\nWallet <code>${t.wallet}</code>\n<code>${ca}</code>`, open(ca));
+          await tgSendCoin(w.x.s.chat, `<b>Whale ${t.kind === "buy" ? "bought" : "sold"} $${esc(info.get(ca)!.symbol)}</b> ${usd(t.usd)}\nWallet <code>${shortAddr(t.wallet)}</code>`, ca, open(ca));
           sent++;
         }
     } catch (e) {
@@ -157,7 +157,8 @@ async function tick() {
           w.seen = [...swaps.map((s) => s.signature), ...w.seen].slice(0, 60);
           if (first) continue;
           for (const s of fresh.slice(0, 5)) {
-            await tgSend(x.s.chat, `<b>${esc(w.label)} ${s.side === "BUY" ? "bought" : "sold"}</b> ${usd(s.sol * sol)}\nToken <code>${s.mint}</code>`, open(s.mint));
+            await tgSendCoin(x.s.chat, `<b>${esc(w.label)} ${s.side === "BUY" ? "bought" : "sold"}</b> ${usd(s.sol * sol)}
+Token ${shortAddr(s.mint)}`, s.mint, open(s.mint));
             sent++;
           }
         } catch {}
@@ -192,8 +193,7 @@ async function tick() {
             if (w.usd < p.minWhale) continue;
             if (p.verifiedOnly && !v?.ok) continue;
             if (!(await once(`aw:${x.id}:${w.wallet}:${w.t}`, 3600))) continue;
-            await tgSend(x.s.chat, text, open(t.ca));
-            await tgSend(x.s.chat, `<code>${t.ca}</code>`);
+            await tgSendCoin(x.s.chat, text, t.ca, open(t.ca));
             sent++;
           }
         }
@@ -219,12 +219,12 @@ async function tick() {
         const d = tinfo.get(t.ca);
         const surge = d ? buyingSurge(d) : null;
         if (surge && (await once(`cool:grp:${t.ca}:buying`, 45 * 60))) {
-          await tgSend(community.ultra.id, `<b>Community buying $${esc(t.symbol)}</b> (trending)\n${surge.buys} buys vs ${surge.sells} sells in 5 min · ${surge.ratio.toFixed(1)}x normal\nVolume ${usd(surge.vol)} · price ${surge.ch >= 0 ? "+" : ""}${surge.ch.toFixed(1)}%\n<code>${t.ca}</code>`, open(t.ca));
+          await tgSendCoin(community.ultra.id, `<b>Community buying $${esc(t.symbol)}</b> (trending)\n${surge.buys} buys vs ${surge.sells} sells in 5 min · ${surge.ratio.toFixed(1)}x normal\nVolume ${usd(surge.vol)} · price ${surge.ch >= 0 ? "+" : ""}${surge.ch.toFixed(1)}%`, t.ca, open(t.ca));
           posts++;
         }
         const rush = a ? walletRush(a) : null;
         if (rush && (await once(`cool:grp:${t.ca}:wallets`, 45 * 60))) {
-          await tgSend(community.ultra.id, `<b>Wallets rushing into $${esc(t.symbol)}</b>\n${rush.buyers} wallets bought in 5 min (normal ${rush.pace.toFixed(1)})\n<code>${t.ca}</code>`, open(t.ca));
+          await tgSendCoin(community.ultra.id, `<b>Wallets rushing into $${esc(t.symbol)}</b>\n${rush.buyers} wallets bought in 5 min (normal ${rush.pace.toFixed(1)})`, t.ca, open(t.ca));
           posts++;
         }
       }
@@ -237,7 +237,7 @@ async function tick() {
         if (!last) continue;
         for (const w of trades.filter((x) => x.t > last).slice(-2)) {
           if (posts >= 6) break;
-          await tgSend(community.ultra.id, `<b>Whale ${w.kind === "buy" ? "bought" : "sold"} $${esc(t.symbol)}</b> ${usd(w.usd)}\nWallet <code>${w.wallet}</code>\n<code>${t.ca}</code>`, open(t.ca));
+          await tgSendCoin(community.ultra.id, `<b>Whale ${w.kind === "buy" ? "bought" : "sold"} $${esc(t.symbol)}</b> ${usd(w.usd)}\nWallet <code>${shortAddr(w.wallet)}</code>`, t.ca, open(t.ca));
           posts++;
         }
       }
