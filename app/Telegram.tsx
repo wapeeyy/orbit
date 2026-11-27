@@ -6,7 +6,7 @@ import { getFollows, onFollowChange } from "./Follow";
 import { api } from "./key";
 import { getWatch, onWatchChange } from "./Watchlist";
 
-type Prefs = { whales: boolean; buying: boolean; wallets: boolean; picks: boolean; minWhale: number };
+type Prefs = { whales: boolean; buying: boolean; wallets: boolean; picks: boolean; allWhales: boolean; verifiedOnly: boolean; minWhale: number };
 
 /** Copy alerts, followed wallets and the watchlist to the server (only used once Telegram is connected) */
 export function useTelegramSync(ultra: boolean) {
@@ -103,6 +103,15 @@ export default function TelegramCard() {
               <input type="checkbox" checked={s.prefs?.picks !== false} onChange={(e) => setPref({ picks: e.target.checked })} />
               New coin added to Scalp or Hold (entry, target, stop)
             </label>
+            <span className="label">Whales on all ORBIT pairs</span>
+            <label className="tg-check">
+              <input type="checkbox" checked={!!s.prefs?.allWhales} onChange={(e) => setPref({ allWhales: e.target.checked })} />
+              Whale buys &amp; sells on every coin in All pairs (top 40 by volume, within about 5 minutes), then the CA on its own to copy
+            </label>
+            <label className="tg-check">
+              <input type="checkbox" checked={s.prefs?.verifiedOnly !== false} disabled={!s.prefs?.allWhales} onChange={(e) => setPref({ verifiedOnly: e.target.checked })} />
+              Only ORBIT Verified coins (real traders, no fake volume)
+            </label>
             <span className="label">Live alerts on your watchlist coins</span>
             {(
               [
@@ -117,7 +126,7 @@ export default function TelegramCard() {
               </label>
             ))}
             <label className="tg-check">
-              Whale size from
+              Whale size from (all whale alerts)
               <select value={s.prefs?.minWhale ?? 2000} onChange={(e) => setPref({ minWhale: Number(e.target.value) })}>
                 {[1000, 2000, 5000, 10000, 25000].map((v) => (
                   <option key={v} value={v}>${v.toLocaleString("en-US")}</option>

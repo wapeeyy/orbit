@@ -104,3 +104,31 @@ export function walletRush(a: PoolAct) {
   if (a.m5.buyers >= Math.max(10, pace * 3)) return { buyers: a.m5.buyers, pace, ch: a.chM5 };
   return null;
 }
+
+export type PairRow = { ca: string; symbol: string; pool: string; mc: number | null; liq: number; vol24: number };
+
+/** The coins in ORBIT All pairs (trending + top volume), biggest 24h volume first; cached 5 minutes */
+export async function allPairs(limit = 40): Promise<PairRow[]> {
+  const { kvGet, kvPipeline, kvConfigured } = await import("./kv");
+  if (kvConfigured()) {
+    const hit = await kvGet("allwh:list").catch(() => null);
+    if (hit) return JSON.parse(hit);
+  }
+  const rows = new Map<string, PairRow>();
+  for (const [path, key] of [["/trending_pools?page=1", "pairs:trending:1"], ["/trending_pools?page=2", "pairs:trending:2"], ["/pools?sort=h24_volume_usd_desc&page=1", "pairs:volume:1"]]) {
+    try {
+      const cached = kvConfigured() ? await kvGet(key).catch(() => null) : null;
+      const j = cached ? JSON.parse(cached) : await gt(`${path}&include=base_token`);
+      const toks = new Map<string, { address: string; symbol: string }>((j.included ?? []).map((t: { id: string; attributes: { address: string; symbol: string } }) => [t.id, t.attributes]));
+      for (const p of j.data ?? []) {
+        const a = p.attributes;
+        const t = toks.get(p.relationships?.base_token?.data?.id);
+        if (!t || t.address === "So11111111111111111111111111111111111111112" || rows.has(t.address)) continue;
+        rows.set(t.address, { ca: t.address, symbol: t.symbol, pool: a.address, mc: Number(a.market_cap_usd ?? a.fdv_usd) || null, liq: Number(a.reserve_in_usd) || 0, vol24: Number(a.volume_usd?.h24) || 0 });
+      }
+    } catch {}
+  }
+  const list = [...rows.values()].filter((r) => r.liq >= 10_000).sort((a, b) => b.vol24 - a.vol24).slice(0, limit);
+  if (list.length && kvConfigured()) await kvPipeline([["SET", "allwh:list", JSON.stringify(list), "EX", 300]]).catch(() => {});
+  return list;
+}

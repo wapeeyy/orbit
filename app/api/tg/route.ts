@@ -65,7 +65,7 @@ export async function POST(req: Request) {
   if (b.coins) sub.coins = b.coins.filter((c) => isValidMint(c.ca)).slice(0, 25).map((c) => ({ ca: c.ca, symbol: String(c.symbol).slice(0, 16) }));
   if (b.prefs) {
     const p = { ...DEFAULT_PREFS, ...(sub.prefs ?? {}), ...b.prefs };
-    sub.prefs = { whales: !!p.whales, buying: !!p.buying, wallets: !!p.wallets, picks: !!p.picks, minWhale: [1000, 2000, 5000, 10000, 25000].includes(Number(p.minWhale)) ? Number(p.minWhale) : 2000 };
+    sub.prefs = { whales: !!p.whales, buying: !!p.buying, wallets: !!p.wallets, picks: !!p.picks, allWhales: !!p.allWhales, verifiedOnly: !!p.verifiedOnly, minWhale: [1000, 2000, 5000, 10000, 25000].includes(Number(p.minWhale)) ? Number(p.minWhale) : 2000 };
   }
   await kvPipeline([
     ["SET", `tgsub:${id}`, JSON.stringify(sub)],

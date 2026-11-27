@@ -44,8 +44,9 @@ export async function tgSend(chatId: number | string, text: string, button?: TgB
 }
 
 export type CoinWatch = { ca: string; symbol: string };
-export type Prefs = { whales: boolean; buying: boolean; wallets: boolean; picks: boolean; minWhale: number };
-export const DEFAULT_PREFS: Prefs = { whales: true, buying: true, wallets: true, picks: true, minWhale: 2000 };
+export type Prefs = { whales: boolean; buying: boolean; wallets: boolean; picks: boolean; allWhales: boolean; verifiedOnly: boolean; minWhale: number };
+// allWhales: whale buys / sells on every coin in ORBIT All pairs (top by volume), off by default (it can be busy)
+export const DEFAULT_PREFS: Prefs = { whales: true, buying: true, wallets: true, picks: true, allWhales: false, verifiedOnly: true, minWhale: 2000 };
 
 export type TgSub = {
   chat: number;
