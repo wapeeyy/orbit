@@ -987,3 +987,11 @@ body:has(div:not([hidden]) > .coin-bar) .install { display: none !important; }
 .dp-row.actions { margin-top: 12px; }
 .dp-row.actions .sell { border-color: rgba(255, 77, 94, 0.4); }
 .demo-stats .demo-tiles { margin-top: 8px; }
+
+/* demo: custom SOL amount + start-over balance */
+.custom-buy { display: flex; align-items: stretch; gap: 8px; margin-top: 10px; }
+.custom-buy input { flex: 1; min-width: 0; font-variant-numeric: tabular-nums; }
+.custom-buy .unit { align-self: center; font-family: var(--narrow); font-size: 11px; letter-spacing: 0.16em; color: var(--faint); margin-left: -2px; }
+.custom-buy button { white-space: nowrap; }
+.demo-reset .chips button.on { border-color: #ffd166; color: #ffd166; }
+.demo-reset p { margin: 6px 0 10px; }

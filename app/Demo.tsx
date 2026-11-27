@@ -80,7 +80,7 @@ export default function Demo({ onOpen }: { onOpen: (ca: string) => void }) {
             <span className="label">Demo trading · fake SOL</span>
             <div className="price">{sol(total, 3)}</div>
             <span className={pnl >= 0 ? "up-t" : "down-t"}>
-              {pnl >= 0 ? "▲" : "▼"} {sol(Math.abs(pnl))} ({pct((pnl / s.start) * 100)}) vs {s.start} SOL start
+              {pnl >= 0 ? "▲" : "▼"} {sol(Math.abs(pnl))} ({pct((pnl / s.start) * 100)}) vs {s.start.toLocaleString("en-US", { maximumFractionDigits: 2 })} SOL start
             </span>
           </div>
         </div>
@@ -121,6 +121,7 @@ export default function Demo({ onOpen }: { onOpen: (ca: string) => void }) {
             </button>
           ))}
         </div>
+        <CustomBuy disabled={ca.trim().length < 32} onBuy={quickBuy} />
         <p className="muted small" style={{ marginTop: 8 }}>Or tap <b>Demo buy</b> in any coin report.</p>
         {msg && <div className={`alert ${msg.ok ? "ok" : "danger"}`}>{msg.text}</div>}
       </div>
@@ -198,14 +199,7 @@ export default function Demo({ onOpen }: { onOpen: (ca: string) => void }) {
         </div>
       )}
 
-      <button
-        className="ghost wide"
-        onClick={() => {
-          if (confirm(`Reset the demo? All positions are cleared and your balance goes back to ${START_SOL} fake SOL.`)) reset();
-        }}
-      >
-        Reset demo (start again with {START_SOL} SOL)
-      </button>
+      <ResetDemo current={s.start || START_SOL} />
     </section>
   );
 }
@@ -248,6 +242,7 @@ export function DemoTrade({ ca, symbol, name, image, priceSol }: { ca: string; s
           </button>
         ))}
       </div>
+      <CustomBuy disabled={!price} onBuy={doBuy} />
       {pos && (
         <div className="demo-pos">
           <span>
@@ -273,5 +268,65 @@ export function DemoTrade({ ca, symbol, name, image, priceSol }: { ca: string; s
       )}
       {msg && <div className={`alert ${msg.ok ? "ok" : "danger"}`} style={{ marginTop: 10, marginBottom: 0 }}>{msg.text}</div>}
     </section>
+  );
+}
+
+/** "Custom" SOL amount: type any amount, then Buy */
+export function CustomBuy({ onBuy, disabled, label = "Buy" }: { onBuy: (sol: number) => void; disabled?: boolean; label?: string }) {
+  const [v, setV] = useState("");
+  const n = Number(v.replace(",", "."));
+  const ok = n > 0 && Number.isFinite(n);
+  return (
+    <form
+      className="custom-buy"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (ok && !disabled) {
+          onBuy(n);
+          setV("");
+        }
+      }}
+    >
+      <input inputMode="decimal" value={v} onChange={(e) => setV(e.target.value)} placeholder="Custom amount" aria-label="Custom SOL amount" />
+      <span className="unit">SOL</span>
+      <button type="submit" className="ghost" disabled={!ok || disabled}>
+        {label}
+        {ok ? ` ${n} SOL` : ""}
+      </button>
+    </form>
+  );
+}
+
+/** Start over with any fake-SOL balance */
+function ResetDemo({ current }: { current: number }) {
+  const [v, setV] = useState(String(current));
+  const n = Number(v.replace(",", "."));
+  const ok = n >= 0.1 && n <= 100_000;
+  return (
+    <div className="card demo-reset">
+      <span className="label">Start over</span>
+      <p className="muted small">Pick your demo balance: practise with the size you would really trade.</p>
+      <div className="chips">
+        {[1, 5, 10, 50, 100].map((k) => (
+          <button key={k} className={`ghost ${n === k ? "on" : ""}`} onClick={() => setV(String(k))}>
+            {k} SOL
+          </button>
+        ))}
+      </div>
+      <div className="custom-buy">
+        <input inputMode="decimal" value={v} onChange={(e) => setV(e.target.value)} aria-label="Demo starting balance in SOL" />
+        <span className="unit">SOL</span>
+        <button
+          className="ghost"
+          disabled={!ok}
+          onClick={() => {
+            if (confirm(`Reset the demo? All positions and history are cleared and you start again with ${n} fake SOL.`)) reset(n);
+          }}
+        >
+          Reset demo
+        </button>
+      </div>
+      {!ok && <p className="small down-t">Choose between 0.1 and 100,000 SOL.</p>}
+    </div>
   );
 }

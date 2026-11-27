@@ -10,7 +10,7 @@ export type DemoState = { start: number; sol: number; pos: Record<string, Pos>; 
 
 const K = "orbit.demo.v1";
 const listeners = new Set<() => void>();
-const fresh = (): DemoState => ({ start: START_SOL, sol: START_SOL, pos: {}, hist: [], realized: 0 });
+const fresh = (start = START_SOL): DemoState => ({ start, sol: start, pos: {}, hist: [], realized: 0 });
 
 export function load(): DemoState {
   try {
@@ -73,8 +73,9 @@ export function sell(ca: string, fraction: number, priceSol: number, priceUsd?: 
   return { solOut, pnl };
 }
 
-export function reset() {
-  save(fresh());
+/** Start the demo again with any fake-SOL balance (0.1 – 100,000) */
+export function reset(start = START_SOL) {
+  save(fresh(Math.min(100_000, Math.max(0.1, Number(start) || START_SOL))));
 }
 
 /** Harga semasa (SOL & USD) dari /api/price */

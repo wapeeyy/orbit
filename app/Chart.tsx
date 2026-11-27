@@ -22,6 +22,7 @@ import { makeShareImage, renderShareChart, shareImage } from "./share";
 import { api } from "./key";
 import { backtest, type Backtest } from "@/lib/backtest";
 import { addAlert, getAlerts, onAlertsChange, removeAlert, type PriceAlert } from "./alerts";
+import { CustomBuy } from "./Demo";
 import { avgEntryUsd, buy as demoBuy, FEE, getTpsl, load as demoLoad, onDemoChange, prices as demoPrices, sell as demoSell, setTpsl, type DemoState, type Tpsl } from "./demo";
 
 // tf -> [timeframe GeckoTerminal, aggregate, bilangan candle]  (sama dengan /api/chart)
@@ -1211,6 +1212,7 @@ function DemoPosition({
               <button key={k} className="ghost small sell" onClick={() => onSell(k)}>{k === 1 ? "Sell all" : `Sell ${k * 100}%`}</button>
             ))}
           </div>
+          <CustomBuy disabled={!px} onBuy={onBuy} label="Buy more" />
           <p className="muted small">Fake SOL at live prices, 1% fee each way. TP / SL sell your whole demo position when the price gets there while ORBIT is open.</p>
         </>
       )}
