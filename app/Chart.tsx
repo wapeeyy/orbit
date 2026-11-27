@@ -25,6 +25,7 @@ import { addAlert, getAlerts, onAlertsChange, removeAlert, type PriceAlert } fro
 
 // tf -> [timeframe GeckoTerminal, aggregate, bilangan candle]  (sama dengan /api/chart)
 const GT: Record<string, [string, number, number]> = {
+  "1m": ["minute", 1, 360],
   "5m": ["minute", 5, 288],
   "15m": ["minute", 15, 192],
   "1h": ["hour", 1, 168],
@@ -35,11 +36,12 @@ const GT: Record<string, [string, number, number]> = {
 type Candle = { t: number; o: number; h: number; l: number; c: number; v: number };
 
 // candle length in seconds, for the live last candle
-const SEC: Record<string, number> = { "5m": 300, "15m": 900, "1h": 3600, "4h": 14400, "1d": 86400 };
+const SEC: Record<string, number> = { "1m": 60, "5m": 300, "15m": 900, "1h": 3600, "4h": 14400, "1d": 86400 };
 const LIVE_MS = 3000; // live price tick (DexScreener)
 const REFRESH_MS = 120_000; // full candles + ORBIT analysis
 
 const TFS = [
+  { id: "1m", label: "1m", span: "6h" },
   { id: "5m", label: "5m", span: "24h" },
   { id: "15m", label: "15m", span: "2d" },
   { id: "1h", label: "1h", span: "7d" },
@@ -140,7 +142,11 @@ export default function Chart({
   fixture,
   whalesFixture,
   layers: initialLayers,
+  tall = false,
+  compact = false,
 }: {
+  tall?: boolean; // Chart view: fills the screen
+  compact?: boolean; // Chart+Txns view: shorter, fewer controls
   pool: string;
   token: string;
   symbol?: string;
@@ -166,6 +172,7 @@ export default function Chart({
   const [full, setFull] = useState(false);
   const [fullTip, setFullTip] = useState(false);
   const [view, setView] = useState<"orbit" | "dex">("orbit");
+  const [reload, setReload] = useState(0); // manual refresh
   const [liveAt, setLiveAt] = useState<number | null>(null);
   const [, tick] = useState(0);
   const priceRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -274,7 +281,7 @@ export default function Chart({
       dead = true;
       clearInterval(iv);
     };
-  }, [pool, token, tf, fixture]);
+  }, [pool, token, tf, fixture, reload]);
 
   // LIVE: move the last candle with the DexScreener price every few seconds; open a new candle on time
   useEffect(() => {
@@ -344,7 +351,7 @@ export default function Chart({
     const el = box.current;
     const showRsi = on("rsi") && !!ta;
     const chart = createChart(el, {
-      height: full ? Math.max(260, vh - (showRsi ? 120 : 110)) : showRsi ? 430 : 360,
+      height: full ? Math.max(260, vh - (showRsi ? 120 : 110)) : tall ? Math.max(380, vh - (showRsi ? 280 : 300)) : compact ? 300 : showRsi ? 430 : 360,
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: "#8a90a6",
@@ -571,18 +578,23 @@ export default function Chart({
       cv.getContext("2d")?.clearRect(0, 0, cv.width, cv.height);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [candles, a, ta, tf, layers, pro, whales, devSwaps, full, vh]);
+  }, [candles, a, ta, tf, layers, pro, whales, devSwaps, full, vh, tall, compact]);
 
   const span = TFS.find((x) => x.id === tf)!.span;
 
   return (
-    <section ref={wrap} className={`card chart-card ${full ? "is-full" : ""}`}>
+    <section ref={wrap} className={`card chart-card ${full ? "is-full" : ""} ${tall ? "tall" : ""} ${compact ? "compact" : ""}`}>
       <div className="section-head">
         <h3>Chart</h3>
         <div className="chart-src" role="tablist" aria-label="Chart source">
           <button className={view === "orbit" ? "on" : ""} onClick={() => setView("orbit")}>ORBIT</button>
           <button className={view === "dex" ? "on" : ""} onClick={() => setView("dex")}>DexScreener</button>
         </div>
+        {view === "orbit" && (
+          <button className="ghost small chart-refresh" onClick={() => setReload((n) => n + 1)} aria-label="Refresh chart" title="Refresh chart">
+            ↻
+          </button>
+        )}
         <button className="full-btn" onClick={() => (full ? exitFull() : enterFull())} title={full ? "Exit full screen" : "Full screen"}>
           {full ? "✕ Close" : "⤢ Full screen"}
         </button>

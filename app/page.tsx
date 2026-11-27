@@ -19,6 +19,7 @@ import Insiders from "./Insiders";
 import SafetySummary from "./SafetySummary";
 import Signals from "./Signals";
 import { Hero, StickyCta, TrialButton, TrialStrip, UpgradeModal } from "./Upgrade";
+import Txns from "./Txns";
 import Trade from "./Trade";
 import { SmartMoney } from "./Follow";
 import { TrialBanner } from "./Trial";
@@ -263,6 +264,8 @@ function ScanView({
   onTrial: () => void;
   onTrace: (address: string) => void;
 }) {
+  // coin page views, like a trading app: Info · Chart+Txns · Chart · Txns
+  const [cv, setCv] = useState<"info" | "both" | "chart" | "txns">("chart");
   const pro = usePro();
   const ultra = pro && keyTier() === "ultra";
   const [info, setInfo] = useState<TokenInfo | null | undefined>(undefined);
@@ -304,6 +307,8 @@ function ScanView({
       }
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
       setData(json);
+      // open the coin like a trading app: straight to the coin, not the page header
+      setTimeout(() => document.getElementById("coin-top")?.scrollIntoView({ block: "start" }), 60);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -342,6 +347,49 @@ function ScanView({
 
       {data && (
         <>
+          <div id="coin-top" />
+          {m && cv !== "info" && (
+            <div className="coin-strip">
+              {m.image && <img src={m.image} alt="" />}
+              <div className="cs-name">
+                <b>${m.symbol}</b>
+                <span className="muted small">{m.name}</span>
+              </div>
+              <div className="cs-px">
+                <b>{usd(m.priceUsd)}</b>
+                {m.change24h != null && <span className={m.change24h >= 0 ? "up" : "down"}>{m.change24h > 0 ? "+" : ""}{m.change24h}%</span>}
+              </div>
+              <div className="cs-stats">
+                <span><i>MC</i>{usd(m.marketCap ?? m.fdv)}</span>
+                <span><i>Liq</i>{usd(m.liquidityUsd)}</span>
+                <span><i>Vol</i>{usd(m.volume24h)}</span>
+              </div>
+              <WatchStar w={{ ca: data.ca, symbol: m.symbol, name: m.name, image: m.image }} pro={pro} onSubscribe={onSubscribe} />
+            </div>
+          )}
+
+          {m?.pairAddress && (cv === "chart" || cv === "both") && (
+            <Chart key={m.pairAddress} pool={m.pairAddress} token={data.ca} symbol={m.symbol} pro={pro} ultra={ultra} dev={info?.dev ?? null} onSubscribe={onSubscribe} onTrace={onTrace} tall={cv === "chart"} compact={cv === "both"} />
+          )}
+          {m?.pairAddress && (cv === "txns" || cv === "both") && <Txns key={"tx-" + m.pairAddress} pool={m.pairAddress} token={data.ca} dev={info?.dev ?? null} onTrace={onTrace} compact={cv === "both"} />}
+
+          <nav className="coin-bar" aria-label="Coin views">
+            {(
+              [
+                ["info", "Info"],
+                ["both", "Chart+Txns"],
+                ["chart", "Chart"],
+                ["txns", "Txns"],
+              ] as const
+            ).map(([id, label]) => (
+              <button key={id} className={cv === id ? "on" : ""} onClick={() => { setCv(id); requestAnimationFrame(() => document.getElementById("coin-top")?.scrollIntoView({ block: "start" })); }}>
+                <CoinIcon name={id} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </nav>
+
+          <div hidden={cv !== "info"}>
           <section className="card token">
             <div className="token-head">
               {m?.image && <img src={m.image} alt="" />}
@@ -397,9 +445,6 @@ function ScanView({
 
           <About key={"about-" + data.ca} ca={data.ca} free={free} onInfo={setInfo} />
 
-          {m?.pairAddress && (
-            <Chart key={m.pairAddress} pool={m.pairAddress} token={data.ca} symbol={m.symbol} pro={pro} ultra={ultra} dev={info?.dev ?? null} onSubscribe={onSubscribe} onTrace={onTrace} />
-          )}
 
           {ultra && m && h ? (
             <Trade key={"trade-" + data.ca} ca={data.ca} symbol={m.symbol} decimals={h.decimals} />
@@ -512,6 +557,8 @@ function ScanView({
               </>
             )}
           </section>
+          </div>
+          <div className="coin-bar-space" />
         </>
       )}
 
@@ -531,4 +578,35 @@ function Stat({ label, value, sub, tone }: { label: string; value: string; sub?:
 
 function Badge({ ok, yes, no }: { ok: boolean; yes: string; no: string }) {
   return <span className={`badge ${ok ? "ok" : "bad"}`}>{ok ? "✓ " + yes : "✕ " + no}</span>;
+}
+
+function CoinIcon({ name }: { name: "info" | "both" | "chart" | "txns" }) {
+  const p = { width: 20, height: 20, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  if (name === "info")
+    return (
+      <svg {...p}>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 11v6M12 7.5v.01" />
+      </svg>
+    );
+  if (name === "both")
+    return (
+      <svg {...p}>
+        <rect x="4" y="4" width="16" height="7" rx="1.5" />
+        <path d="M4 15h16M4 19h16" />
+      </svg>
+    );
+  if (name === "chart")
+    return (
+      <svg {...p}>
+        <path d="M4 19h16" />
+        <path d="M5 15l4-5 4 3 6-7" />
+      </svg>
+    );
+  return (
+    <svg {...p}>
+      <path d="M8 6h12M8 12h12M8 18h12" />
+      <path d="M4 6h.01M4 12h.01M4 18h.01" />
+    </svg>
+  );
 }

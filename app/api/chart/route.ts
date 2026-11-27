@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 
 // tf -> [timeframe GeckoTerminal, aggregate, bilangan candle]
 const TF: Record<string, [string, number, number]> = {
+  "1m": ["minute", 1, 360], // 6 jam
   "5m": ["minute", 5, 288], // 24 jam
   "15m": ["minute", 15, 192], // 2 hari
   "1h": ["hour", 1, 168], // 7 hari
