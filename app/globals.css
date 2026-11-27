@@ -892,3 +892,26 @@ body.in-tg.has-install { padding-bottom: 0 !important; }
 .coin .verified { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-top: 8px; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(111, 227, 168, 0.35); background: rgba(111, 227, 168, 0.06); font-size: 12.5px; }
 .coin .verified b { color: #6fe3a8; letter-spacing: 0.12em; text-transform: uppercase; font-size: 11px; font-weight: 600; }
 .coin .verified span { color: var(--muted, #a3a7b3); }
+
+/* chart: ORBIT / DexScreener switch, LIVE badge, DexScreener embed */
+.chart-src { display: inline-flex; border: 1px solid var(--line, #262a38); border-radius: 999px; overflow: hidden; }
+.chart-src button { border: 0; border-radius: 0; background: transparent; padding: 5px 11px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted, #8a90a6); min-height: 0; }
+.chart-src button.on { background: rgba(255, 255, 255, 0.08); color: #f2f3f5; }
+.live-dot { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; letter-spacing: 0.08em; color: #3ee6a0; font-variant-numeric: tabular-nums; }
+.live-dot i { width: 7px; height: 7px; border-radius: 50%; background: #3ee6a0; box-shadow: 0 0 0 0 rgba(62, 230, 160, 0.6); animation: live-pulse 1.6s infinite; }
+.live-dot.stale { color: #8a90a6; }
+.live-dot.stale i { background: #8a90a6; animation: none; }
+@keyframes live-pulse { 0% { box-shadow: 0 0 0 0 rgba(62, 230, 160, 0.55); } 70% { box-shadow: 0 0 0 7px rgba(62, 230, 160, 0); } 100% { box-shadow: 0 0 0 0 rgba(62, 230, 160, 0); } }
+.dex-embed iframe { width: 100%; height: 460px; border: 0; border-radius: 12px; background: #0b0c10; display: block; }
+.chart-card.is-full .dex-embed iframe { height: calc(100dvh - 140px); }
+.dex-embed p { margin: 8px 2px 0; }
+.chart-card > .section-head { flex-wrap: wrap; row-gap: 8px; }
+.live-dot { white-space: nowrap; }
+.chart-wrap { position: relative; }
+.chart-wrap .live-dot { position: absolute; top: 8px; left: 10px; z-index: 20; opacity: 1; padding: 3px 8px; border-radius: 999px; background: rgba(5, 6, 10, 0.75); border: 1px solid rgba(62, 230, 160, 0.3); pointer-events: none; }
+.chart-wrap .live-dot.stale { border-color: rgba(255, 255, 255, 0.12); }
+
+.chart-wrap .live-dot { display: inline-flex; align-items: center; gap: 6px; font-family: var(--narrow); font-size: 10.5px; letter-spacing: 0.14em; color: #3ee6a0; background: rgba(5, 6, 10, 0.92); }
+.live-pip { display: inline-block; flex: none; width: 7px; height: 7px; border-radius: 50%; background: #3ee6a0; animation: live-blink 1.4s ease-in-out infinite; }
+.live-dot.stale .live-pip { background: #8a90a6; animation: none; }
+@keyframes live-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }

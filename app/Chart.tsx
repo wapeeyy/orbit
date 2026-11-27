@@ -10,6 +10,8 @@ import {
   LineSeries,
   LineStyle,
   type IChartApi,
+  type ISeriesApi,
+  type LogicalRange,
   type SeriesMarker,
   type UTCTimestamp,
 } from "lightweight-charts";
@@ -31,6 +33,11 @@ const GT: Record<string, [string, number, number]> = {
 };
 
 type Candle = { t: number; o: number; h: number; l: number; c: number; v: number };
+
+// candle length in seconds, for the live last candle
+const SEC: Record<string, number> = { "5m": 300, "15m": 900, "1h": 3600, "4h": 14400, "1d": 86400 };
+const LIVE_MS = 3000; // live price tick (DexScreener)
+const REFRESH_MS = 120_000; // full candles + ORBIT analysis
 
 const TFS = [
   { id: "5m", label: "5m", span: "24h" },
@@ -158,6 +165,12 @@ export default function Chart({
   const wrap = useRef<HTMLElement>(null);
   const [full, setFull] = useState(false);
   const [fullTip, setFullTip] = useState(false);
+  const [view, setView] = useState<"orbit" | "dex">("orbit");
+  const [liveAt, setLiveAt] = useState<number | null>(null);
+  const [, tick] = useState(0);
+  const priceRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const lastBar = useRef<Candle | null>(null);
+  const rangeRef = useRef<{ tf: string; r: LogicalRange } | null>(null);
   useEffect(() => {
     if (!full) return setFullTip(false);
     setFullTip(true);
@@ -223,26 +236,78 @@ export default function Chart({
     let dead = false;
     setCandles(null);
     setError(null);
+    rangeRef.current = null;
+    setLiveAt(null);
     if (fixture) {
       setCandles(fixture[tf] ?? []);
       return;
     }
     // Straight from the browser (GeckoTerminal blocks Vercel IPs); fall back to the server route
     const [frame, agg, limit] = GT[tf];
-    fetchCandles(pool, token, frame, agg, limit)
-      .catch(() =>
-        fetch(`/api/chart?pool=${pool}&token=${token}&tf=${tf}`).then(async (r) => {
-          const j = await r.json();
-          if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
-          return j.candles as Candle[];
-        }),
-      )
-      .then((cs) => !dead && setCandles(cs))
-      .catch((e) => !dead && setError(e.message));
+    const load = (quiet: boolean) =>
+      fetchCandles(pool, token, frame, agg, limit)
+        .catch(() =>
+          fetch(`/api/chart?pool=${pool}&token=${token}&tf=${tf}`).then(async (r) => {
+            const j = await r.json();
+            if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+            return j.candles as Candle[];
+          }),
+        )
+        .then((cs) => {
+          if (dead || !cs.length) return;
+          // keep the live last candle if it is newer than what the candle feed has
+          const live = lastBar.current;
+          if (quiet && live && live.t >= cs[cs.length - 1].t) {
+            const i = cs.findIndex((c) => c.t === live.t);
+            if (i >= 0) cs[i] = { ...cs[i], h: Math.max(cs[i].h, live.h), l: Math.min(cs[i].l, live.l), c: live.c };
+            else cs.push(live);
+          }
+          setCandles(cs);
+        })
+        .catch((e) => !dead && !quiet && setError(e.message));
+    load(false);
+    // full refresh (new candles + new ORBIT read) while the page is visible
+    const iv = setInterval(() => {
+      if (!document.hidden) load(true);
+    }, REFRESH_MS);
     return () => {
       dead = true;
+      clearInterval(iv);
     };
   }, [pool, token, tf, fixture]);
+
+  // LIVE: move the last candle with the DexScreener price every few seconds; open a new candle on time
+  useEffect(() => {
+    if (fixture || !candles?.length) return;
+    let busy = false;
+    const iv = setInterval(async () => {
+      if (busy || document.hidden || !priceRef.current || !lastBar.current) return;
+      busy = true;
+      try {
+        const r = await fetch(`https://api.dexscreener.com/latest/dex/pairs/solana/${pool}`, { cache: "no-store" });
+        const j = (await r.json()) as { pair?: { priceUsd?: string }; pairs?: { priceUsd?: string }[] };
+        const px = Number(j.pair?.priceUsd ?? j.pairs?.[0]?.priceUsd);
+        if (!(px > 0)) return;
+        const sec = SEC[tf];
+        const bucket = Math.floor(Date.now() / 1000 / sec) * sec;
+        const last = lastBar.current;
+        const bar: Candle =
+          bucket > last.t ? { t: bucket, o: last.c, h: Math.max(last.c, px), l: Math.min(last.c, px), c: px, v: 0 } : bucket === last.t ? { ...last, h: Math.max(last.h, px), l: Math.min(last.l, px), c: px } : last;
+        lastBar.current = bar;
+        priceRef.current.update({ time: bar.t as UTCTimestamp, open: bar.o, high: bar.h, low: bar.l, close: bar.c });
+        setLiveAt(Date.now());
+      } catch {
+        // keep the last good price; try again on the next tick
+      } finally {
+        busy = false;
+      }
+    }, LIVE_MS);
+    const clock = setInterval(() => tick((n) => n + 1), 1000);
+    return () => {
+      clearInterval(iv);
+      clearInterval(clock);
+    };
+  }, [pool, tf, fixture, candles]);
 
   const a = useMemo(() => (candles ? analyse(candles) : null), [candles]);
   const ta = useMemo(() => (candles && candles.length > 30 ? taAnalyse(candles) : null), [candles]);
@@ -304,6 +369,8 @@ export default function Chart({
       priceFormat: { type: "custom", formatter: fmtPrice, minMove: 1e-12 },
     });
     price.setData(candles.map((c) => ({ time: c.t as UTCTimestamp, open: c.o, high: c.h, low: c.l, close: c.c })));
+    priceRef.current = price;
+    lastBar.current = candles[candles.length - 1];
 
     const vol = chart.addSeries(HistogramSeries, { priceFormat: { type: "volume" }, priceScaleId: "", lastValueVisible: false, priceLineVisible: false });
     vol.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
@@ -484,7 +551,9 @@ export default function Chart({
     const redraw = () => requestAnimationFrame(draw);
     chart.timeScale().subscribeVisibleLogicalRangeChange(redraw);
     chart.subscribeCrosshairMove(redraw);
-    chart.timeScale().fitContent();
+    const kept = rangeRef.current;
+    if (kept && kept.tf === tf) chart.timeScale().setVisibleLogicalRange(kept.r);
+    else chart.timeScale().fitContent();
     setTimeout(draw, 30);
     const ro = new ResizeObserver(() => {
       chart.applyOptions({ width: el.clientWidth });
@@ -492,6 +561,9 @@ export default function Chart({
     });
     ro.observe(el);
     return () => {
+      const vr = chart.timeScale().getVisibleLogicalRange();
+      if (vr) rangeRef.current = { tf, r: vr };
+      priceRef.current = null;
       alive = false;
       chartRef.current = null;
       ro.disconnect();
@@ -507,9 +579,14 @@ export default function Chart({
     <section ref={wrap} className={`card chart-card ${full ? "is-full" : ""}`}>
       <div className="section-head">
         <h3>Chart</h3>
+        <div className="chart-src" role="tablist" aria-label="Chart source">
+          <button className={view === "orbit" ? "on" : ""} onClick={() => setView("orbit")}>ORBIT</button>
+          <button className={view === "dex" ? "on" : ""} onClick={() => setView("dex")}>DexScreener</button>
+        </div>
         <button className="full-btn" onClick={() => (full ? exitFull() : enterFull())} title={full ? "Exit full screen" : "Full screen"}>
           {full ? "✕ Close" : "⤢ Full screen"}
         </button>
+        {view === "orbit" && (
         <div className="tf">
           {TFS.map((x) => (
             <button key={x.id} className={tf === x.id ? "on" : ""} onClick={() => setTf(x.id)}>
@@ -517,8 +594,21 @@ export default function Chart({
             </button>
           ))}
         </div>
+        )}
       </div>
 
+      {view === "dex" && (
+        <div className="dex-embed">
+          <iframe
+            title="DexScreener chart"
+            src={`https://dexscreener.com/solana/${pool}?embed=1&loadChartSettings=0&trades=0&tabs=0&info=0&chartLeftToolbar=0&chartTheme=dark&theme=dark&chartStyle=1&chartType=usd&interval=15`}
+            allow="clipboard-write"
+          />
+          <p className="muted small">Live chart by DexScreener: every trade, to the second. ORBIT marks (structure, levels, whales) are on the ORBIT tab.</p>
+        </div>
+      )}
+
+      {view === "orbit" && (
       <div className="layers">
         {LAYERS.map((l) => (
           <button key={l.id} className={`${on(l.id) ? "on" : ""} ${!allowed(l.id) ? "locked" : ""}`} onClick={() => toggle(l.id)} style={{ ["--c" as string]: l.color }}>
@@ -526,12 +616,19 @@ export default function Chart({
           </button>
         ))}
       </div>
+      )}
 
-      {error && <div className="alert danger">Chart: {error}</div>}
-      {!error && !candles && <div className="chart-loading muted">Loading chart…</div>}
-      {candles && candles.length === 0 && <div className="chart-loading muted">No candle data for this pool.</div>}
-      <div className="chart-wrap" hidden={!candles || candles.length === 0}>
+      {view === "orbit" && error && <div className="alert danger">Chart: {error}</div>}
+      {view === "orbit" && !error && !candles && <div className="chart-loading muted">Loading chart…</div>}
+      {view === "orbit" && candles && candles.length === 0 && <div className="chart-loading muted">No candle data for this pool.</div>}
+      <div className="chart-wrap" hidden={view === "dex" || !candles || candles.length === 0}>
         <div ref={box} className="chart-box" />
+        {liveAt && (
+          <span className={`live-dot ${Date.now() - liveAt < 15_000 ? "" : "stale"}`} title="The last candle moves with the live price">
+            <span className="live-pip" />
+            LIVE · {Math.max(0, Math.round((Date.now() - liveAt) / 1000))}s
+          </span>
+        )}
         <canvas ref={overlay} className="chart-overlay" />
       </div>
 
