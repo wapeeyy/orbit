@@ -995,3 +995,6 @@ body:has(div:not([hidden]) > .coin-bar) .install { display: none !important; }
 .custom-buy button { white-space: nowrap; }
 .demo-reset .chips button.on { border-color: #ffd166; color: #ffd166; }
 .demo-reset p { margin: 6px 0 10px; }
+
+.demo-pos .section-head { flex-wrap: wrap; row-gap: 4px; }
+.demo-pos .section-head b { font-size: 13px; white-space: nowrap; }
