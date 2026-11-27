@@ -50,6 +50,12 @@ export default function Demo({ onOpen }: { onOpen: (ca: string) => void }) {
   const posValue = held.reduce((v, k) => v + (px[k] ? s.pos[k].amount * px[k].sol : s.pos[k].costSol), 0);
   const total = s.sol + posValue;
   const pnl = total - s.start;
+  // track record: every closed (sold) demo trade
+  const closed = s.hist.filter((t) => t.side === "SELL" && t.pnlSol != null);
+  const tpct = (t: (typeof closed)[number]) => (t.pnlSol! / Math.max(1e-9, t.sol - t.pnlSol!)) * 100;
+  const wins = closed.filter((t) => t.pnlSol! > 0).length;
+  const best = closed.length ? closed.reduce((a, b) => (tpct(b) > tpct(a) ? b : a)) : null;
+  const worst = closed.length ? closed.reduce((a, b) => (tpct(b) < tpct(a) ? b : a)) : null;
 
   const quickBuy = async (amt: number) => {
     setMsg(null);
@@ -89,6 +95,20 @@ export default function Demo({ onOpen }: { onOpen: (ca: string) => void }) {
         </p>
       </div>
 
+      <div className="card demo-stats">
+        <span className="label">Your demo track record</span>
+        {closed.length === 0 ? (
+          <p className="muted small">No closed trades yet. Sell a position (or let a take-profit / stop-loss hit) to start your record. Prove it here before you use real money.</p>
+        ) : (
+          <div className="demo-tiles">
+            <div><i>Win rate</i><b className={wins / closed.length >= 0.5 ? "up-t" : "down-t"}>{Math.round((wins / closed.length) * 100)}%</b></div>
+            <div><i>Closed trades</i><b>{closed.length} · {wins} won</b></div>
+            <div><i>Best trade</i><b className="up-t">{best ? `$${best.symbol} ${pct(tpct(best))}` : "—"}</b></div>
+            <div><i>Worst trade</i><b className="down-t">{worst ? `$${worst.symbol} ${pct(tpct(worst))}` : "—"}</b></div>
+          </div>
+        )}
+      </div>
+
       <div className="card">
         <h3 style={{ margin: "0 0 10px" }}>Buy (demo)</h3>
         <div className="search" style={{ marginBottom: 10 }}>
@@ -111,6 +131,7 @@ export default function Demo({ onOpen }: { onOpen: (ca: string) => void }) {
           <button className="ghost" onClick={refresh}>↻</button>
         </div>
         {held.length === 0 && <p className="muted">No positions yet. Buy a coin to get started.</p>}
+        {held.length > 0 && <p className="muted small" style={{ margin: "0 0 10px" }}>Tap a coin to open its live chart with your entries, average price, break-even and TP / SL.</p>}
         <div className="positions">
           {held.map((k) => {
             const p = s.pos[k];

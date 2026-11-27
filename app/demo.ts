@@ -5,7 +5,7 @@ export const START_SOL = 10;
 export const FEE = 0.01; // simulasi fee + slippage 1% setiap belah
 
 export type Pos = { ca: string; symbol: string; name: string; image?: string; amount: number; costSol: number; openedAt: number };
-export type Trade = { ts: number; side: "BUY" | "SELL"; ca: string; symbol: string; amount: number; sol: number; priceSol: number; pnlSol?: number };
+export type Trade = { ts: number; side: "BUY" | "SELL"; ca: string; symbol: string; amount: number; sol: number; priceSol: number; priceUsd?: number; pnlSol?: number };
 export type DemoState = { start: number; sol: number; pos: Record<string, Pos>; hist: Trade[]; realized: number };
 
 const K = "orbit.demo.v1";
@@ -34,7 +34,7 @@ export function onDemoChange(f: () => void) {
   };
 }
 
-export function buy(meta: { ca: string; symbol: string; name: string; image?: string }, solAmt: number, priceSol: number) {
+export function buy(meta: { ca: string; symbol: string; name: string; image?: string }, solAmt: number, priceSol: number, priceUsd?: number) {
   const s = load();
   if (!(priceSol > 0)) throw new Error("Price not available");
   if (!(solAmt > 0)) throw new Error("Enter a SOL amount");
@@ -45,13 +45,13 @@ export function buy(meta: { ca: string; symbol: string; name: string; image?: st
   p.costSol += solAmt;
   s.pos[meta.ca] = p;
   s.sol -= solAmt;
-  s.hist.unshift({ ts: Date.now(), side: "BUY", ca: meta.ca, symbol: meta.symbol, amount, sol: solAmt, priceSol });
+  s.hist.unshift({ ts: Date.now(), side: "BUY", ca: meta.ca, symbol: meta.symbol, amount, sol: solAmt, priceSol, ...(priceUsd ? { priceUsd } : {}) });
   s.hist = s.hist.slice(0, 100);
   save(s);
   return amount;
 }
 
-export function sell(ca: string, fraction: number, priceSol: number) {
+export function sell(ca: string, fraction: number, priceSol: number, priceUsd?: number) {
   const s = load();
   const p = s.pos[ca];
   if (!p) throw new Error("No position");
@@ -66,7 +66,8 @@ export function sell(ca: string, fraction: number, priceSol: number) {
   if (f >= 0.999 || p.amount <= 1e-12) delete s.pos[ca];
   s.sol += solOut;
   s.realized += pnl;
-  s.hist.unshift({ ts: Date.now(), side: "SELL", ca, symbol: p.symbol, amount, sol: solOut, priceSol, pnlSol: pnl });
+  s.hist.unshift({ ts: Date.now(), side: "SELL", ca, symbol: p.symbol, amount, sol: solOut, priceSol, ...(priceUsd ? { priceUsd } : {}), pnlSol: pnl });
+  if (!s.pos[ca]) setTpsl(ca, null);
   s.hist = s.hist.slice(0, 100);
   save(s);
   return { solOut, pnl };
@@ -82,4 +83,41 @@ export async function prices(cas: string[]) {
   const j = await r.json();
   if (!r.ok) throw new Error(j.error ?? "Couldn't fetch prices");
   return j as { solUsd: number; prices: Record<string, { usd: number; sol: number; symbol: string; name: string; image?: string; liq: number }> };
+}
+
+/* ---------- demo take-profit / stop-loss (USD prices), per coin ---------- */
+export type Tpsl = { tp?: number; sl?: number };
+const TK = "orbit.demo.tpsl.v1";
+export function getTpsl(ca: string): Tpsl {
+  try {
+    return (JSON.parse(localStorage.getItem(TK) ?? "{}") as Record<string, Tpsl>)[ca] ?? {};
+  } catch {
+    return {};
+  }
+}
+export function setTpsl(ca: string, v: Tpsl | null) {
+  try {
+    const all = JSON.parse(localStorage.getItem(TK) ?? "{}") as Record<string, Tpsl>;
+    if (!v || (!v.tp && !v.sl)) delete all[ca];
+    else all[ca] = v;
+    localStorage.setItem(TK, JSON.stringify(all));
+  } catch {}
+  listeners.forEach((f) => f());
+}
+
+/** Average entry (USD) of the open position: buys since it was opened, weighted by amount */
+export function avgEntryUsd(s: DemoState, ca: string, solUsd: number | null): number | null {
+  const p = s.pos[ca];
+  if (!p) return null;
+  const buys = s.hist.filter((t) => t.ca === ca && t.side === "BUY" && t.ts >= p.openedAt - 1000);
+  let w = 0;
+  let sum = 0;
+  for (const t of buys) {
+    const usd = t.priceUsd ?? (solUsd ? t.priceSol * solUsd : null);
+    if (usd == null) continue;
+    sum += usd * t.amount;
+    w += t.amount;
+  }
+  if (w > 0) return sum / w;
+  return solUsd ? (p.costSol * (1 - FEE) / p.amount) * solUsd : null;
 }

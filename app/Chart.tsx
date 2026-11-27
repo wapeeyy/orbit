@@ -22,6 +22,7 @@ import { makeShareImage, renderShareChart, shareImage } from "./share";
 import { api } from "./key";
 import { backtest, type Backtest } from "@/lib/backtest";
 import { addAlert, getAlerts, onAlertsChange, removeAlert, type PriceAlert } from "./alerts";
+import { avgEntryUsd, buy as demoBuy, FEE, getTpsl, load as demoLoad, onDemoChange, prices as demoPrices, sell as demoSell, setTpsl, type DemoState, type Tpsl } from "./demo";
 
 // tf -> [timeframe GeckoTerminal, aggregate, bilangan candle]  (sama dengan /api/chart)
 const GT: Record<string, [string, number, number]> = {
@@ -115,8 +116,9 @@ function analyse(cs: Candle[]) {
   };
 }
 
-type Layer = "structure" | "levels" | "profile" | "fib" | "whales" | "dev" | "ema" | "vwap" | "rsi";
+type Layer = "demo" | "structure" | "levels" | "profile" | "fib" | "whales" | "dev" | "ema" | "vwap" | "rsi";
 const LAYERS: { id: Layer; label: string; color: string; pro?: boolean; ultra?: boolean }[] = [
+  { id: "demo", label: "My demo", color: "#ffd166", pro: true },
   { id: "structure", label: "Structure", color: "#f3d9a4", pro: true },
   { id: "levels", label: "S/R zones", color: "#7aa2ff", pro: true },
   { id: "profile", label: "Volume profile", color: ZONE, pro: true },
@@ -127,7 +129,7 @@ const LAYERS: { id: Layer; label: string; color: string; pro?: boolean; ultra?: 
   { id: "vwap", label: "VWAP", color: "#ffffff" },
   { id: "rsi", label: "RSI", color: "#b388ff" },
 ];
-const DEFAULT_LAYERS: Layer[] = ["structure", "levels", "profile", "whales", "dev", "ema", "rsi"];
+const DEFAULT_LAYERS: Layer[] = ["demo", "structure", "levels", "profile", "whales", "dev", "ema", "rsi"];
 const kusd = (n: number) => "$" + new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 
 export default function Chart({
@@ -173,6 +175,15 @@ export default function Chart({
   const [fullTip, setFullTip] = useState(false);
   const [view, setView] = useState<"orbit" | "dex">("orbit");
   const [reload, setReload] = useState(0); // manual refresh
+  // demo trading on this coin: entries on the chart, avg entry, break-even, TP / SL
+  const [demo, setDemo] = useState<DemoState | null>(null);
+  useEffect(() => {
+    setDemo(demoLoad());
+    return onDemoChange(() => setDemo(demoLoad()));
+  }, []);
+  const [livePx, setLivePx] = useState<{ usd: number; sol: number } | null>(null);
+  const [tpsl, setTpslState] = useState<Tpsl>({});
+  const [demoMsg, setDemoMsg] = useState<string | null>(null);
   const [liveAt, setLiveAt] = useState<number | null>(null);
   const [, tick] = useState(0);
   const priceRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -283,6 +294,33 @@ export default function Chart({
     };
   }, [pool, token, tf, fixture, reload]);
 
+  useEffect(() => {
+    setTpslState(getTpsl(token));
+    return onDemoChange(() => setTpslState(getTpsl(token)));
+  }, [token]);
+  useEffect(() => {
+    if (fixture) return;
+    demoPrices([token])
+      .then((p) => {
+        const x = p.prices[token];
+        if (x?.usd && x?.sol) setLivePx((v) => v ?? { usd: x.usd, sol: x.sol });
+      })
+      .catch(() => {});
+  }, [token, fixture]);
+
+  // demo TP / SL: sell the whole demo position when the live price reaches it (while ORBIT is open)
+  useEffect(() => {
+    if (!livePx || !demo?.pos[token]) return;
+    const hitTp = tpsl.tp && livePx.usd >= tpsl.tp;
+    const hitSl = tpsl.sl && livePx.usd <= tpsl.sl;
+    if (!hitTp && !hitSl) return;
+    try {
+      const { pnl } = demoSell(token, 1, livePx.sol, livePx.usd);
+      setTpsl(token, null);
+      setDemoMsg(`${hitTp ? "Take-profit" : "Stop-loss"} hit: sold all at ${fmtPrice(livePx.usd)} (${pnl >= 0 ? "+" : ""}${pnl.toFixed(3)} SOL, demo)`);
+    } catch {}
+  }, [livePx, demo, tpsl, token]);
+
   // LIVE: move the last candle with the DexScreener price every few seconds; open a new candle on time
   useEffect(() => {
     if (fixture || !candles?.length) return;
@@ -292,9 +330,12 @@ export default function Chart({
       busy = true;
       try {
         const r = await fetch(`https://api.dexscreener.com/latest/dex/pairs/solana/${pool}`, { cache: "no-store" });
-        const j = (await r.json()) as { pair?: { priceUsd?: string }; pairs?: { priceUsd?: string }[] };
-        const px = Number(j.pair?.priceUsd ?? j.pairs?.[0]?.priceUsd);
+        const j = (await r.json()) as { pair?: { priceUsd?: string; priceNative?: string }; pairs?: { priceUsd?: string; priceNative?: string }[] };
+        const pr = j.pair ?? j.pairs?.[0];
+        const px = Number(pr?.priceUsd);
         if (!(px > 0)) return;
+        const native = Number(pr?.priceNative);
+        if (native > 0) setLivePx({ usd: px, sol: native });
         const sec = SEC[tf];
         const bucket = Math.floor(Date.now() / 1000 / sec) * sec;
         const last = lastBar.current;
@@ -337,6 +378,14 @@ export default function Chart({
     setTimeout(() => setShareMsg(null), 4000);
   }
   const on = (l: Layer) => layers.has(l) && allowed(l);
+
+  // ---- demo position on this coin ----
+  const dPos = demo?.pos[token] ?? null;
+  const dTrades = useMemo(() => (demo ? demo.hist.filter((t) => t.ca === token) : []), [demo, token]);
+  const solUsd = livePx ? livePx.usd / livePx.sol : null;
+  const dAvg = demo && dPos ? avgEntryUsd(demo, token, solUsd) : null;
+  const dBreakEven = dAvg ? dAvg / ((1 - FEE) * (1 - FEE)) : null;
+  const dKey = `${dTrades.map((t) => t.ts).join(",")}|${dPos?.amount ?? 0}|${dAvg ?? 0}|${tpsl.tp ?? 0}|${tpsl.sl ?? 0}`;
   const toggle = (l: Layer) => {
     if (!allowed(l)) return onSubscribe?.();
     setLayers((s) => {
@@ -444,7 +493,33 @@ export default function Chart({
         markers.push({ time: t as UTCTimestamp, position: d.side === "BUY" ? "belowBar" : "aboveBar", color: d.side === "BUY" ? "#ffb84d" : "#ff3b30", shape: d.side === "BUY" ? "arrowUp" : "arrowDown", text: `DEV ${d.side} ${kusd(d.usd)}` });
       }
     }
+    if (on("demo") && dTrades.length) {
+      const sec = SEC[tf];
+      const first = candles[0].t;
+      for (const t of dTrades) {
+        const bt = Math.floor(t.ts / 1000 / sec) * sec;
+        if (bt < first) continue;
+        const pct = t.side === "SELL" && t.pnlSol != null ? ` ${t.pnlSol >= 0 ? "+" : ""}${((t.pnlSol / Math.max(1e-9, t.sol - t.pnlSol)) * 100).toFixed(0)}%` : "";
+        markers.push({ time: bt as UTCTimestamp, position: t.side === "BUY" ? "belowBar" : "aboveBar", color: "#ffd166", shape: t.side === "BUY" ? "arrowUp" : "arrowDown", text: `YOU ${t.side} ${t.sol.toFixed(2)} SOL${pct}` });
+      }
+    }
     createSeriesMarkers(price, markers.sort((x, y) => (x.time as number) - (y.time as number)));
+    if (on("demo") && dAvg) {
+      price.createPriceLine({ price: dAvg, color: "#ffd166", lineStyle: LineStyle.Solid, lineWidth: 2, axisLabelVisible: true, title: "Avg entry" });
+      if (dBreakEven) price.createPriceLine({ price: dBreakEven, color: "rgba(255,209,102,0.55)", lineStyle: LineStyle.Dotted, lineWidth: 1, axisLabelVisible: false, title: "Break-even" });
+    }
+    // keep the demo TP / SL / avg entry inside the visible price range
+    const demoLevels = on("demo") && dPos ? [dAvg, tpsl.tp, tpsl.sl].filter((x): x is number => !!x) : [];
+    if (demoLevels.length)
+      price.applyOptions({
+        autoscaleInfoProvider: (orig: () => { priceRange: { minValue: number; maxValue: number } } | null) => {
+          const r = orig();
+          if (!r) return r;
+          return { ...r, priceRange: { minValue: Math.min(r.priceRange.minValue, ...demoLevels), maxValue: Math.max(r.priceRange.maxValue, ...demoLevels) } };
+        },
+      });
+    if (on("demo") && dPos && tpsl.tp) price.createPriceLine({ price: tpsl.tp, color: UP, lineStyle: LineStyle.Dashed, lineWidth: 2, axisLabelVisible: true, title: "TP" });
+    if (on("demo") && dPos && tpsl.sl) price.createPriceLine({ price: tpsl.sl, color: DOWN, lineStyle: LineStyle.Dashed, lineWidth: 2, axisLabelVisible: true, title: "SL" });
 
     if (showRsi && ta) {
       const r = chart.addSeries(LineSeries, { color: "#b388ff", lineWidth: 1, lastValueVisible: true, priceLineVisible: false, crosshairMarkerVisible: false, priceFormat: { type: "price", precision: 0, minMove: 1 } }, 1);
@@ -578,7 +653,7 @@ export default function Chart({
       cv.getContext("2d")?.clearRect(0, 0, cv.width, cv.height);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [candles, a, ta, tf, layers, pro, whales, devSwaps, full, vh, tall, compact]);
+  }, [candles, a, ta, tf, layers, pro, whales, devSwaps, full, vh, tall, compact, dKey]);
 
   const span = TFS.find((x) => x.id === tf)!.span;
 
@@ -664,6 +739,36 @@ export default function Chart({
         </div>
       )}
       {pro && dev && devSwaps && <DevPanel swaps={devSwaps} dev={dev} onTrace={onTrace} />}
+      {view === "orbit" && pro && (dPos || demoMsg) && (
+        <DemoPosition
+          symbol={symbol}
+          pos={dPos}
+          avg={dAvg}
+          be={dBreakEven}
+          px={livePx}
+          tpsl={tpsl}
+          msg={demoMsg}
+          onTpsl={(v) => setTpsl(token, v)}
+          onSell={(f) => {
+            if (!livePx) return;
+            try {
+              const { pnl } = demoSell(token, f, livePx.sol, livePx.usd);
+              setDemoMsg(`Sold ${Math.round(f * 100)}% (${pnl >= 0 ? "+" : ""}${pnl.toFixed(3)} SOL, demo)`);
+            } catch (e) {
+              setDemoMsg((e as Error).message);
+            }
+          }}
+          onBuy={(solAmt) => {
+            if (!livePx || !dPos) return;
+            try {
+              demoBuy({ ca: token, symbol: dPos.symbol, name: dPos.name, image: dPos.image }, solAmt, livePx.sol, livePx.usd);
+              setDemoMsg(`Bought ${solAmt} SOL more (demo)`);
+            } catch (e) {
+              setDemoMsg((e as Error).message);
+            }
+          }}
+        />
+      )}
       {ta && pro && <OrbitRead ta={ta} tf={tf} onShare={share} shareMsg={shareMsg} />}
       {ultra && bt && bt.samples >= 5 && <BacktestCard bt={bt} tf={tf} />}
       {pro && (ultra ? <MultiRead pool={pool} token={token} fixture={fixture} /> : <UltraTeaser onSubscribe={onSubscribe} />)}
@@ -1030,5 +1135,85 @@ function RangeBar({ lo, hi, now, zone }: { lo: number; hi: number; now: number; 
         <span style={{ color: UP }}>High ${fmtPrice(hi)}</span>
       </div>
     </div>
+  );
+}
+
+/** Demo position on this coin: live PnL, avg entry, break-even, TP / SL, buy more / sell */
+function DemoPosition({
+  symbol,
+  pos,
+  avg,
+  be,
+  px,
+  tpsl,
+  msg,
+  onTpsl,
+  onSell,
+  onBuy,
+}: {
+  symbol: string;
+  pos: { amount: number; costSol: number } | null;
+  avg: number | null;
+  be: number | null;
+  px: { usd: number; sol: number } | null;
+  tpsl: Tpsl;
+  msg: string | null;
+  onTpsl: (v: Tpsl) => void;
+  onSell: (f: number) => void;
+  onBuy: (sol: number) => void;
+}) {
+  const val = pos && px ? pos.amount * px.sol * (1 - FEE) : null;
+  const pnl = val != null && pos ? val - pos.costSol : null;
+  const pct = pnl != null && pos ? (pnl / pos.costSol) * 100 : null;
+  const pctOf = (p?: number) => (p && avg ? `${p >= avg ? "+" : ""}${((p / avg - 1) * 100).toFixed(0)}%` : "");
+  return (
+    <section className={`card demo-pos ${pct != null ? (pct >= 0 ? "up" : "down") : ""}`}>
+      <div className="section-head">
+        <span className="label">My demo position · ${symbol}</span>
+        {pct != null && (
+          <b className={pct >= 0 ? "up" : "down"}>
+            {pct >= 0 ? "+" : ""}
+            {pct.toFixed(1)}% · {pnl! >= 0 ? "+" : ""}
+            {pnl!.toFixed(3)} SOL
+          </b>
+        )}
+      </div>
+      {msg && <div className="alert ok small">{msg}</div>}
+      {pos && (
+        <>
+          <div className="dp-grid">
+            <div><span>Holding</span><b>{pos.amount.toLocaleString("en-US", { maximumFractionDigits: 0 })}</b></div>
+            <div><span>Cost</span><b>{pos.costSol.toFixed(3)} SOL</b></div>
+            <div><span>Value now</span><b>{val != null ? `${val.toFixed(3)} SOL` : "—"}</b></div>
+            <div><span>Avg entry</span><b>{avg ? fmtPrice(avg) : "—"}</b></div>
+            <div><span>Break-even</span><b>{be ? fmtPrice(be) : "—"}</b></div>
+            <div><span>Price now</span><b>{px ? fmtPrice(px.usd) : "—"}</b></div>
+          </div>
+          <div className="dp-row">
+            <span className="label">Take-profit</span>
+            {[25, 50, 100].map((k) => (
+              <button key={k} className={`ghost small ${avg && tpsl.tp && Math.abs(tpsl.tp / avg - 1 - k / 100) < 0.005 ? "on" : ""}`} onClick={() => avg && onTpsl({ ...tpsl, tp: avg * (1 + k / 100) })}>+{k}%</button>
+            ))}
+            {tpsl.tp && <em className="up">{fmtPrice(tpsl.tp)} ({pctOf(tpsl.tp)}) <button className="x" onClick={() => onTpsl({ ...tpsl, tp: undefined })} aria-label="Clear take-profit">✕</button></em>}
+          </div>
+          <div className="dp-row">
+            <span className="label">Stop-loss</span>
+            {[10, 20, 30].map((k) => (
+              <button key={k} className={`ghost small ${avg && tpsl.sl && Math.abs(tpsl.sl / avg - 1 + k / 100) < 0.005 ? "on" : ""}`} onClick={() => avg && onTpsl({ ...tpsl, sl: avg * (1 - k / 100) })}>-{k}%</button>
+            ))}
+            {tpsl.sl && <em className="down">{fmtPrice(tpsl.sl)} ({pctOf(tpsl.sl)}) <button className="x" onClick={() => onTpsl({ ...tpsl, sl: undefined })} aria-label="Clear stop-loss">✕</button></em>}
+          </div>
+          <div className="dp-row actions">
+            {[0.1, 0.5, 1].map((k) => (
+              <button key={k} className="ghost small" onClick={() => onBuy(k)}>Buy {k}</button>
+            ))}
+            {[0.25, 0.5, 1].map((k) => (
+              <button key={k} className="ghost small sell" onClick={() => onSell(k)}>{k === 1 ? "Sell all" : `Sell ${k * 100}%`}</button>
+            ))}
+          </div>
+          <p className="muted small">Fake SOL at live prices, 1% fee each way. TP / SL sell your whole demo position when the price gets there while ORBIT is open.</p>
+        </>
+      )}
+    </section>
   );
 }
