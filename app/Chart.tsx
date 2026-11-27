@@ -685,21 +685,6 @@ export default function Chart({
         )}
       </div>
 
-      {view === "dex" && pro && dPos && (
-        <div className="dex-demo-bar" title="Your demo position (lines are on the ORBIT tab)">
-          <span className="label">My demo</span>
-          {(() => {
-            const val = livePx ? dPos.amount * livePx.sol * (1 - FEE) : null;
-            const pc = val != null ? (val / dPos.costSol - 1) * 100 : null;
-            return pc != null ? <b className={pc >= 0 ? "up" : "down"}>{pc >= 0 ? "+" : ""}{pc.toFixed(1)}%</b> : null;
-          })()}
-          <span><i>Avg</i>{dAvg ? fmtPrice(dAvg) : "—"}</span>
-          <span><i>BE</i>{dBreakEven ? fmtPrice(dBreakEven) : "—"}</span>
-          {tpsl.tp && <span className="up"><i>TP</i>{fmtPrice(tpsl.tp)}</span>}
-          {tpsl.sl && <span className="down"><i>SL</i>{fmtPrice(tpsl.sl)}</span>}
-          <span><i>Now</i>{livePx ? fmtPrice(livePx.usd) : "—"}</span>
-        </div>
-      )}
       {view === "dex" && (
         <div className="dex-embed">
           <iframe
@@ -755,7 +740,7 @@ export default function Chart({
         </div>
       )}
       {pro && dev && devSwaps && <DevPanel swaps={devSwaps} dev={dev} onTrace={onTrace} />}
-      {pro && (dPos || demoMsg) && (
+      {view === "orbit" && pro && (dPos || demoMsg) && (
         <DemoPosition
           symbol={symbol}
           pos={dPos}

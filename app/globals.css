@@ -995,12 +995,3 @@ body:has(div:not([hidden]) > .coin-bar) .install { display: none !important; }
 .custom-buy button { white-space: nowrap; }
 .demo-reset .chips button.on { border-color: #ffd166; color: #ffd166; }
 .demo-reset p { margin: 6px 0 10px; }
-
-/* DexScreener tab: your demo numbers above the embedded chart */
-.dex-demo-bar { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin: 0 0 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255, 209, 102, 0.4); background: rgba(255, 209, 102, 0.05); font-size: 12.5px; font-variant-numeric: tabular-nums; }
-.dex-demo-bar .label { color: #ffd166; margin: 0; }
-.dex-demo-bar b { font-size: 14px; }
-.dex-demo-bar i { font-style: normal; font-family: var(--narrow); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--faint); margin-right: 5px; }
-
-.demo-pos .section-head { flex-wrap: wrap; row-gap: 4px; }
-.demo-pos .section-head b { font-size: 13px; white-space: nowrap; }
