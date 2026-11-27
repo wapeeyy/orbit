@@ -19,5 +19,5 @@ jobs:
             curl -fsS --max-time 55 https://www.orbitonsol.com/api/cron || true
             curl -fsS --max-time 58 https://www.orbitonsol.com/api/picks/refresh || true
             echo
-            [ "$i" -lt 5 ] && sleep 30
+            if [ "$i" -lt 5 ]; then sleep 30; fi
           done
