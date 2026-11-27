@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { kvConfigured, kvGet, kvPipeline } from "@/lib/kv";
 import { dexInfo } from "@/lib/marketwatch";
 import { notifyClosed, notifyNewPicks, notifyRemoved } from "@/lib/picknotify";
@@ -11,7 +11,19 @@ export const maxDuration = 60;
  * Called every minute by the alerts workflow. Scalp list rebuilt every ~5 min, Hold list every ~6 h,
  * open picks settled (target / stop / expired) every run. Public but safe: locked, reads public data only.
  */
-export async function GET() {
+/**
+ * Called every minute by cron-job.org (and the GitHub workflow as a backup). Answers at once and does the
+ * work after the response, so the caller never times out; ?wait=1 runs it inline and returns the result.
+ */
+export async function GET(req: Request) {
+  if (new URL(req.url).searchParams.get("wait") === "1") return tick();
+  after(async () => {
+    await tick();
+  });
+  return NextResponse.json({ queued: true });
+}
+
+async function tick() {
   if (!kvConfigured()) return NextResponse.json({ skipped: "no database" });
   const [lock] = (await kvPipeline([["SET", "picks:lock", "1", "NX", "EX", 55]])) as [string | null];
   if (lock !== "OK") return NextResponse.json({ skipped: "locked" });

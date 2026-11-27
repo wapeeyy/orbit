@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { kvConfigured, kvGet, kvPipeline, setOnce } from "@/lib/kv";
 import { bigTrades, buyingSurge, dexInfo, poolActivity, trending, walletRush } from "@/lib/marketwatch";
 import { solUsd } from "@/lib/pay";
@@ -22,7 +22,19 @@ const open = (ca: string) => ({ text: "Open in ORBIT", url: `${SITE}/?ca=${ca}&s
  *  - the daily ORBIT reads post in the public channel
  *  - removes expired Ultra members from the group
  */
-export async function GET() {
+/**
+ * Called every minute by cron-job.org (and the GitHub workflow as a backup). Answers at once and does the
+ * work after the response, so the caller never times out; ?wait=1 runs it inline and returns the result.
+ */
+export async function GET(req: Request) {
+  if (new URL(req.url).searchParams.get("wait") === "1") return tick();
+  after(async () => {
+    await tick();
+  });
+  return NextResponse.json({ queued: true });
+}
+
+async function tick() {
   if (!kvConfigured() || !tgReady()) return NextResponse.json({ skipped: "not configured" });
   const [lock, n] = (await kvPipeline([["SET", "cronlock", String(Date.now()), "NX", "EX", 45], ["INCR", "cron:n"]])) as [string | null, number];
   if (lock !== "OK") return NextResponse.json({ skipped: "locked" });

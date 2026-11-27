@@ -16,8 +16,8 @@ jobs:
       - name: Tick every minute
         run: |
           for i in 1 2 3 4 5; do
-            curl -fsS --max-time 55 https://www.orbitonsol.com/api/cron || true
-            curl -fsS --max-time 58 https://www.orbitonsol.com/api/picks/refresh || true
+            curl -fsS --max-time 55 https://www.orbitonsol.com/api/cron?wait=1 || true
+            curl -fsS --max-time 58 https://www.orbitonsol.com/api/picks/refresh?wait=1 || true
             echo
             if [ "$i" -lt 5 ]; then sleep 30; fi
           done
