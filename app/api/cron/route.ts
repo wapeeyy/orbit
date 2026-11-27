@@ -5,6 +5,7 @@ import { solUsd } from "@/lib/pay";
 import { analyse } from "@/lib/ta";
 import { fetchCandles } from "@/lib/analysis";
 import { cachedVerify, verifyPending } from "@/lib/verify";
+import { alertPool, whaleWatch } from "@/lib/whalewatch";
 import { DEFAULT_PREFS, SITE, esc, shortAddr, tgSendCoin, getCommunity, px, tgCall, tgReady, tgSend, usd, type TgSub } from "@/lib/telegram";
 import { fetchSwaps, toSwap } from "@/lib/wallet";
 
@@ -31,6 +32,10 @@ export async function GET(req: Request) {
   if (new URL(req.url).searchParams.get("wait") === "1") return tick();
   after(async () => {
     await tick();
+  });
+  // whales on all ORBIT pairs: polls every 10 s for the rest of this minute
+  after(async () => {
+    await whaleWatch(48_000).catch(() => null);
   });
   return NextResponse.json({ queued: true });
 }
@@ -166,37 +171,20 @@ Token ${shortAddr(s.mint)}`, s.mint, open(s.mint));
   }
   for (const x of subs) await kvPipeline([["SET", `tgsub:${x.id}`, JSON.stringify(x.s)]]);
 
-  // 3b. whales on every coin in ORBIT All pairs: 10 coins per run in rotation (each coin every ~4 min),
-  //     every whale trade since the last look; alert first, then the CA alone so it is easy to copy
+  // 3b. backup for the fast whale watcher (lib/whalewatch.ts): 4 coins per run in rotation, every whale
+  //     trade since the last look; alert first, then the CA alone so it is easy to copy
   const allSubs = subs.filter((x) => x.s.prefs!.allWhales);
   if (allSubs.length) {
     try {
       const list = await allPairs(40);
-      const per = Math.min(8, list.length);
+      const per = Math.min(4, list.length);
       const batch = Array.from({ length: per }, (_, i) => list[(n * per + i) % list.length]);
       const ver = await cachedVerify(batch.map((t) => t.ca));
       const unchecked = batch.filter((t) => !ver[t.ca]).map((t) => ({ ca: t.ca, pool: t.pool }));
       if (unchecked.length) await verifyPending(unchecked, 2, 15_000).catch(() => 0);
-      const minUsd = Math.min(...allSubs.map((x) => x.s.prefs!.minWhale));
       for (const t of batch) {
-        const last = Number((await kvGet(`awlast:${t.pool}`)) ?? 0);
-        const trades = await bigTrades(t.pool, t.ca, minUsd).catch(() => null);
-        if (!trades) continue; // busy (429): keep the old mark so nothing is missed on the next look
-        const newest = trades.length ? trades[trades.length - 1].t * 1000 : 0; // trade times are in seconds
-        await kvPipeline([["SET", `awlast:${t.pool}`, String(Math.max(newest, last || Date.now())), "EX", 7 * 86400]]);
-        if (!last) continue; // first look at this coin: start from now
-        const v = ver[t.ca];
-        for (const w of trades.filter((x) => x.t * 1000 > last && Date.now() - x.t * 1000 < 20 * 60_000).slice(-4)) {
-          const text = `<b>Whale ${w.kind === "buy" ? "bought" : "sold"} $${esc(t.symbol)}</b>  ${usd(w.usd)}\nWallet <code>${w.wallet.slice(0, 4)}…${w.wallet.slice(-4)}</code>${t.mc ? ` · MC ${usd(t.mc)}` : ""} · Liq ${usd(t.liq)}\n${v?.ok ? `ORBIT Verified · ${v.organicPct}% organic volume` : "Not ORBIT Verified"}`;
-          for (const x of allSubs) {
-            const p = x.s.prefs!;
-            if (w.usd < p.minWhale) continue;
-            if (p.verifiedOnly && !v?.ok) continue;
-            if (!(await once(`aw:${x.id}:${w.wallet}:${w.t}`, 3600))) continue;
-            await tgSendCoin(x.s.chat, text, t.ca, open(t.ca));
-            sent++;
-          }
-        }
+        const n = await alertPool(t, allSubs, ver[t.ca]);
+        if (n) sent += n;
       }
     } catch (e) {
       log.push(`all-pairs whales: ${(e as Error).message}`);
