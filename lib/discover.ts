@@ -1,6 +1,7 @@
 import type { DexPair } from "./dex";
 import { getHolders } from "./holders";
 import { narratives, type VolumeZone } from "./analysis";
+import { cachedVerify, type Verify } from "./verify";
 
 // Senarai coin Solana yang DexScreener tengah tonjolkan
 const SOURCES: { path: string; tag: string }[] = [
@@ -48,6 +49,7 @@ export type Candidate = {
   links: { type: string; url: string }[];
   pairAddress: string;
   zone?: VolumeZone | null; // diisi oleh browser melalui /api/zone
+  verify?: Verify | null; // ORBIT Verified (real-trader check), from cache; checked in the background
 };
 
 export type DiscoverResult = { updatedAt: number; scanned: number; candidates: Candidate[] };
@@ -178,6 +180,8 @@ export async function discover(): Promise<DiscoverResult> {
   await holderJob;
 
   candidates = candidates.sort((a, b) => b.volume24h - a.volume24h);
+  const ver = await cachedVerify(candidates.map((c) => c.ca)).catch(() => ({}) as Record<string, Verify>);
+  for (const c of candidates) c.verify = ver[c.ca] ?? null;
   const data = { updatedAt: now, scanned: cas.length, candidates };
   cache = { at: now, data };
   return data;

@@ -1,6 +1,7 @@
 import { getHolders } from "./holders";
 import { kvConfigured, kvGet, kvPipeline } from "./kv";
 import { analyse, type Candle } from "./ta";
+import { getVerify } from "./verify";
 
 // ORBIT Scalp & Hold (Ultra): candidates from GeckoTerminal, then strict checks before anything is listed.
 // Nothing here guarantees profit: every pick ships with an entry zone, a target, a stop and a public track record.
@@ -180,6 +181,11 @@ async function deepCheck(c: Cand, kind: Kind): Promise<Pick | null> {
   // 3. can you sell?
   const loss = await roundTripLoss(c.ca).catch(() => null);
   if (!pass("Sellable", loss != null && loss < (kind === "scalp" ? 8 : 5), loss == null ? "No sell route" : `${loss.toFixed(1)}% lost on a 0.1 SOL round-trip`)) return null;
+
+  // 3b. real traders, not fake volume or a launch bundle (ORBIT Verified)
+  const ver = await getVerify(c.ca, c.pool).catch(() => null);
+  const vfail = ver?.checks.filter((x) => !x.ok) ?? [];
+  if (!pass("Real traders", !!ver && !ver.err && vfail.length === 0, !ver || ver.err ? "Trade check unavailable" : vfail.length ? vfail.map((x) => x.v).join("; ") : `ORBIT Verified: ${ver.organicPct}% organic volume, ${ver.traders} wallets`)) return null;
 
   // 4. RugCheck red flags
   const rc = await rugcheck(c.ca).catch(() => null);

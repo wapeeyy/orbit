@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { keyFrom, signFree } from "@/lib/auth";
 import { discover } from "@/lib/discover";
 import { DEFAULTS, reasons } from "@/lib/filters";
+import { verifyPending } from "@/lib/verify";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -10,6 +11,10 @@ const FREE_COINS = 3;
 export async function GET(req: Request) {
   try {
     const data = await discover();
+    // ORBIT Verified: check (in the background) the coins that pass every other default filter
+    const basic = { ...DEFAULTS, needVerified: false };
+    const todo = data.candidates.filter((c) => !c.verify && reasons(c, basic).length === 0).map((c) => ({ ca: c.ca, pool: c.pairAddress, dexId: c.dexId }));
+    if (todo.length) after(() => verifyPending(todo, 4, 45_000).then(() => {}));
     if (keyFrom(req)) {
       // Pelanggan: senarai penuh (jangan simpan di CDN — bergantung pada kod akses)
       return NextResponse.json({ ...data, locked: null }, { headers: { "cache-control": "private, no-store" } });

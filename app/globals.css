@@ -887,3 +887,8 @@ html, body { touch-action: pan-x pan-y; -webkit-text-size-adjust: 100%; }
 /* inside Telegram (Mini App): no "install app" banner */
 body.in-tg .install { display: none !important; }
 body.in-tg.has-install { padding-bottom: 0 !important; }
+
+/* ORBIT Verified (real-trader check) on Discover cards */
+.coin .verified { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-top: 8px; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(111, 227, 168, 0.35); background: rgba(111, 227, 168, 0.06); font-size: 12.5px; }
+.coin .verified b { color: #6fe3a8; letter-spacing: 0.12em; text-transform: uppercase; font-size: 11px; font-weight: 600; }
+.coin .verified span { color: var(--muted, #a3a7b3); }

@@ -8,6 +8,7 @@ export type Filters = {
   maxTop10: number;
   maxTop1: number;
   needRevoked: boolean;
+  needVerified: boolean; // ORBIT Verified: real traders, no fake volume, no launch bundle
 };
 
 export const DEFAULTS: Filters = {
@@ -18,6 +19,7 @@ export const DEFAULTS: Filters = {
   maxTop10: 30,
   maxTop1: 5,
   needRevoked: true,
+  needVerified: true,
 };
 
 const usd = (n: number | null) =>
@@ -40,5 +42,24 @@ export function reasons(c: Candidate, f: Filters): string[] {
   if (c.holders.top1Pct > f.maxTop1) r.push(`Whale ${c.holders.top1Pct.toFixed(1)}%`);
   if (f.needRevoked && !c.holders.mintRevoked) r.push("Mint active");
   if (f.needRevoked && !c.holders.freezeRevoked) r.push("Freeze active");
+  if (f.needVerified && !r.length) r.push(...verifyReasons(c)); // only once everything else passes
   return r;
+}
+
+const FAIL: Record<string, (c: Candidate) => string> = {
+  "Organic volume": (c) => `Fake volume (organic ${c.verify?.organicPct ?? 0}%)`,
+  "Volume spread": () => "Volume from a few wallets",
+  "No wash trading": () => "Wash trading",
+  "No bot pattern": () => "Bot trades",
+  "Real crowd": (c) => `Few real traders (${c.verify?.traders ?? 0})`,
+  "No launch bundle": () => "Launch bundle",
+  "Enough trades": () => "Too few trades",
+};
+
+/** ORBIT Verified: why a coin is not verified (empty = verified) */
+export function verifyReasons(c: Candidate): string[] {
+  const v = c.verify;
+  if (!v) return ["Verifying real traders…"];
+  if (v.err) return ["Trade check unavailable"];
+  return v.checks.filter((x) => !x.ok).map((x) => (FAIL[x.k] ?? (() => x.k))(c));
 }

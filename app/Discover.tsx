@@ -167,6 +167,10 @@ export default function Discover({ onOpen, onSubscribe }: { onOpen: (ca: string,
               <input type="checkbox" checked={f.needRevoked} onChange={(e) => update({ needRevoked: e.target.checked })} />
               Mint & freeze must be revoked
             </label>
+            <label className="check">
+              <input type="checkbox" checked={f.needVerified} onChange={(e) => update({ needVerified: e.target.checked })} />
+              Real traders only (ORBIT Verified: no fake volume, wash trading or launch bundle)
+            </label>
             <button className="ghost small" onClick={() => update(DEFAULTS)}>
               Reset
             </button>
@@ -241,6 +245,12 @@ export default function Discover({ onOpen, onSubscribe }: { onOpen: (ca: string,
               </div>
             )}
             {c.zone && <ZoneLine z={c.zone} />}
+            {c.verify?.ok && (
+              <div className="verified" title={c.verify.checks.map((x) => `${x.k}: ${x.v}`).join("\n")}>
+                <b>ORBIT Verified</b>
+                <span>Real traders · {c.verify.organicPct}% organic volume · {c.verify.traders} wallets · score {c.verify.score}</span>
+              </div>
+            )}
             {why.length > 0 && <div className="why">{why.join(" · ")}</div>}
             <div className="tags">
               {c.tags.map((t) => (
