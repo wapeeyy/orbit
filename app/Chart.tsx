@@ -281,6 +281,8 @@ export default function Chart({
             if (i >= 0) cs[i] = { ...cs[i], h: Math.max(cs[i].h, live.h), l: Math.min(cs[i].l, live.l), c: live.c };
             else cs.push(live);
           }
+          // a fresh load (new coin / timeframe / refresh) fits the chart; only the 2-min refresh keeps your zoom
+          if (!quiet) rangeRef.current = null;
           setCandles(cs);
         })
         .catch((e) => !dead && !quiet && setError(e.message));
